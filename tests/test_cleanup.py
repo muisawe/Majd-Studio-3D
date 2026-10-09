@@ -140,6 +140,7 @@ class CleanupServiceTests(unittest.TestCase):
         runner.assert_not_called()
         self.assertFalse((self.root / "cleanup_runs").exists())
 
+    @unittest.skipIf(os.name == "nt", "Windows expands ~user without raising")
     def test_path_and_disk_errors_do_not_abort_batch(self):
         invalid = "~majd_missing_cleanup_user/model.glb"
         with patch("majd_studio_3d.cleanup.run_process", side_effect=self.worker_success):
@@ -165,7 +166,7 @@ class CleanupServiceTests(unittest.TestCase):
         config["decimate_ratio"] = .8
         self.assertEqual(result["config_snapshot"]["decimate_ratio"], .2)
         self.assertEqual(result["config_snapshot"]["top_k"], 2)
-        self.assertEqual(result["config_snapshot"]["blender_path"], "/configured/Blender")
+        self.assertEqual(result["config_snapshot"]["blender_path"], os.fspath(Path("/configured/Blender")))
         self.assertEqual(Path(result["output_dir"]).parent, self.root / "manual")
 
 

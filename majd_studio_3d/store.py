@@ -41,6 +41,16 @@ def slugify(value: str) -> str:
     return value or "item"
 
 
+class _ClosingConnection(sqlite3.Connection):
+    """`with` commits like sqlite3 does, then closes so Windows releases the database file."""
+
+    def __exit__(self, *exc_info):
+        try:
+            return super().__exit__(*exc_info)
+        finally:
+            self.close()
+
+
 class V9Store(ReviewStoreMixin, LibraryStoreMixin):
     def __init__(self, db_path: Path, projects_root: Path, library_root: Path):
         self.db_path = Path(db_path)
@@ -53,7 +63,7 @@ class V9Store(ReviewStoreMixin, LibraryStoreMixin):
         self.ensure_defaults()
 
     def connect(self):
-        conn = sqlite3.connect(self.db_path, timeout=30)
+        conn = sqlite3.connect(self.db_path, timeout=30, factory=_ClosingConnection)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys=ON")
         conn.execute("PRAGMA journal_mode=WAL")
