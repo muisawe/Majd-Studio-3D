@@ -21,18 +21,17 @@ V8 functionality retained:
 from __future__ import annotations
 
 import os
-import re
+import sqlite3
 import sys
 import json
 import uuid
-import shutil
 import threading
 import subprocess
 from pathlib import Path
 from datetime import datetime
 
 ROOT = Path(__file__).resolve().parents[1]
-MV_REPO = Path(r"E:\AI\Hunyuan3D-2-MV")
+MV_REPO = Path(os.environ.get("MAJD_MV_REPO") or r"E:\AI\Hunyuan3D-2-MV")
 
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "hy3dshape"))
@@ -56,8 +55,9 @@ from .library_controller import LibraryController
 from .library_gradio import mount_library_panel
 from .generation import GenerationEngine, MV_READY, MV_ERROR
 from .viewer_publisher import ViewerPublisher
+from .asset_intake import AssetIntake
+from .constants import STATUS_AR
 from .blender_finalize import BlenderFinalizer, find_blender
-from .constants import STATUS_AR, VIEW_KEYS
 
 # =============================================================================
 # Paths / store
@@ -470,20 +470,7 @@ def preview_preflight_action(style_id,front,back,left,right,threeq,detail):
 # Asset creation / batch import
 # =============================================================================
 
-def copy_input_to_asset(asset_id,path,label):
-    if not path: return None
-    src=Path(path); ext=src.suffix.lower() or ".png"
-    dst=STORE.asset_input_dir(asset_id)/f"{label}{ext}"
-    shutil.copy2(src,dst)
-    return str(dst)
-
-
-def resolve_engine(engine_hint,cardinal):
-    if engine_hint=="Single View 2.1": return "2.1"
-    if engine_hint=="Multi-View 2mv":
-        if not MV_READY: raise gr.Error("2mv غير جاهز. أعد تشغيل installer.")
-        return "2mv"
-    return "2mv" if cardinal>=2 and MV_READY else "2.1"
+INTAKE=AssetIntake(STORE,PRESETS,MV_READY)
 
 
 def create_asset_action(
@@ -491,86 +478,30 @@ def create_asset_action(
     engine_hint,front,back,left,right,threeq,detail,candidates,steps,guidance,resolution,
     base_seed,seed_strategy,remove_bg,preserve_mesh,auto_blender,retry_count
 ):
-    if not project_id: raise gr.Error("اختر مشروعًا.")
-    if not style_id: raise gr.Error("اختر Style Profile.")
-    if not name or not name.strip(): raise gr.Error("اكتب اسم الأصل.")
-    if not front: raise gr.Error("Front مطلوبة حاليًا.")
-
-    cardinal=sum(bool(x) for x in (front,back,left,right))
-    engine=resolve_engine(engine_hint,cardinal)
+    views={"front":front,"back":back,"left":left,"right":right,"threeq":threeq,"detail":detail}
     try:
-        aid=STORE.create_asset({
-            "project_id":project_id,"style_id":style_id,"name":name,"asset_type":asset_type,
-            "library_category":library_category or PRESETS.get(asset_type,{}).get("library",""),
-            "style_lock":style_lock,"engine":engine,"candidates":candidates,"steps":steps,
-            "guidance":guidance,"resolution":resolution,"base_seed":base_seed,
-            "seed_strategy":seed_strategy,"remove_bg":remove_bg,"preserve_mesh":preserve_mesh,
-            "auto_blender":auto_blender,"retry_count":retry_count,"target_size":target_size,
-            "unit":unit,"message":"تمت إضافته إلى الدفعة"
-        })
-        paths={
-            "front_path":copy_input_to_asset(aid,front,"front"),
-            "back_path":copy_input_to_asset(aid,back,"back"),
-            "left_path":copy_input_to_asset(aid,left,"left"),
-            "right_path":copy_input_to_asset(aid,right,"right"),
-            "threeq_path":copy_input_to_asset(aid,threeq,"threeq"),
-            "detail_path":copy_input_to_asset(aid,detail,"detail"),
-        }
-        STORE.update_asset(aid,**paths)
-    except Exception as exc:
-        raise gr.Error(str(exc))
-
+        INTAKE.create_asset(
+            project_id,style_id,name,asset_type,library_category,target_size,unit,style_lock,
+            engine_hint,views,candidates,steps,guidance,resolution,base_seed,seed_strategy,
+            remove_bg,preserve_mesh,auto_blender,retry_count)
+    except (ValueError,OSError,sqlite3.Error) as exc:
+        raise gr.Error(str(exc)) from exc
     return (
         f"تمت إضافة **{name}** إلى **{STORE.get_project(project_id)['name']}**.",
         summary_html(project_id),queue_data(project_id),review_selector_update(project_id)
     )
 
 
-_SUFFIX={
-    "front":"front","f":"front","back":"back","rear":"back","left":"left","l":"left",
-    "right":"right","r":"right","3q":"threeq","threeq":"threeq","threequarter":"threeq",
-    "detail":"detail","closeup":"detail"
-}
-
-
 def import_folder_action(
     project_id,style_id,folder,asset_type,engine_hint,candidates,steps,guidance,resolution,
     remove_bg,preserve_mesh,auto_blender,retry_count,skip_existing,style_lock
 ):
-    if not project_id or not style_id: raise gr.Error("اختر المشروع والـStyle.")
-    root=Path((folder or "").strip().strip('"'))
-    if not root.is_dir(): raise gr.Error("المجلد غير موجود.")
-    images=[]
-    for ext in ("*.png","*.jpg","*.jpeg","*.webp"): images.extend(root.glob(ext))
-    if not images: raise gr.Error("لا توجد صور.")
-
-    rx=re.compile(r"^(.*?)__(front|f|back|rear|left|l|right|r|3q|threeq|threequarter|detail|closeup)$",re.I)
-    groups={}
-    for img in images:
-        m=rx.match(img.stem)
-        if m: name,view=m.group(1),_SUFFIX[m.group(2).lower()]
-        else: name,view=img.stem,"front"
-        groups.setdefault(name,{})
-        groups[name].setdefault(view,str(img))
-
-    existing={r["name"] for r in STORE.list_assets(project_id=project_id)}
-    preset=PRESETS.get(asset_type,PRESETS["إكسسوار / Prop"])
-    added=0; skipped=[]
-    for name,views in sorted(groups.items()):
-        if "front" not in views: skipped.append(name+" (no front)"); continue
-        if skip_existing and name in existing: skipped.append(name+" (existing)"); continue
-        cardinal=sum(bool(views.get(k)) for k in ("front","back","left","right"))
-        engine=resolve_engine(engine_hint,cardinal)
-        aid=STORE.create_asset({
-            "project_id":project_id,"style_id":style_id,"name":name,"asset_type":asset_type,
-            "library_category":preset["library"],"style_lock":style_lock,"engine":engine,
-            "candidates":candidates,"steps":steps,"guidance":guidance,"resolution":resolution,
-            "remove_bg":remove_bg,"preserve_mesh":preserve_mesh,"auto_blender":auto_blender,
-            "retry_count":retry_count,"target_size":preset["target_size"],"unit":"m",
-            "message":"تمت إضافته باستيراد Batch"
-        })
-        STORE.update_asset(aid,**{f"{k}_path":copy_input_to_asset(aid,views.get(k),k) for k in VIEW_KEYS})
-        added+=1
+    try:
+        added,skipped=INTAKE.import_folder(
+            project_id,style_id,folder,asset_type,engine_hint,candidates,steps,guidance,resolution,
+            remove_bg,preserve_mesh,auto_blender,retry_count,skip_existing,style_lock)
+    except (ValueError,OSError,sqlite3.Error) as exc:
+        raise gr.Error(str(exc)) from exc
     msg=f"تمت إضافة {added} أصل إلى المشروع."
     if skipped: msg+="\nتم تجاهل: "+", ".join(skipped[:12])
     return msg,summary_html(project_id),queue_data(project_id),review_selector_update(project_id)

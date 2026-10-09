@@ -17,6 +17,7 @@ majd_studio_3d/
   candidate_qa.py مقارنة Silhouette للمرشحين مع المراجع
   viewer_publisher.py نشر حالة العارض وخادمه المحلي
   blender_finalize.py اكتشاف Blender وإنهاء الأصل المعتمد
+  asset_intake.py إنشاء الأصول والاستيراد من مجلد (بدون Gradio)
   constants.py    ثوابت مشتركة (VIEW_KEYS وSTATUS_AR)
 viewer/           واجهة Three.js المستقلة
 scripts/          بناء الحزم وتثبيت Windows وتشغيله
