@@ -1,7 +1,9 @@
-import ast
+import importlib
+import importlib.util
 import json
 import os
 import sqlite3
+import sys
 import tempfile
 import threading
 import types
@@ -315,30 +317,31 @@ class ProcessingTests(unittest.TestCase):
         self.assertIs(processed[2], items[2])
         self.assertEqual(self.reducer.call_count, 1)
 
-    def test_real_app_function_handoff_starts_only_after_raw_export(self):
-        module = ast.parse((Path(__file__).resolve().parents[1] / "majd_studio_3d" / "app.py").read_text())
-        function = next(node for node in module.body if isinstance(node, ast.FunctionDef) and node.name == "process_asset")
+    @unittest.skipUnless(importlib.util.find_spec("numpy") and importlib.util.find_spec("PIL"),
+                         "Generation module needs numpy and Pillow")
+    def test_generation_engine_handoff_starts_only_after_raw_export(self):
+        fake_torch = types.SimpleNamespace(OutOfMemoryError=MemoryError,
+                                           cuda=types.SimpleNamespace(is_available=lambda: False))
+        with patch.dict(sys.modules, {"torch": fake_torch}):
+            sys.modules.pop("majd_studio_3d.generation", None)
+            generation = importlib.import_module("majd_studio_3d.generation")
+        self.addCleanup(sys.modules.pop, "majd_studio_3d.generation", None)
+
         class RawMesh:
             faces = [None] * 1000
             vertices = [None] * 3
             def export(self, path):
                 Path(path).write_text(json.dumps({"faces": 1000}))
         self.service.store.update_asset(self.asset, candidates=1, retry_count=0, front_path="dummy.png", engine="2.1")
-        namespace = {"STORE": self.service.store, "APP_DIR": self.service.app_dir,
-            "DOWNLOAD_CANCEL": threading.Event(), "Path": Path, "json": json,
-            "run_asset_preflight": lambda row: {"status": "PASS", "score": 1},
-            "VIEW_KEYS": ["front", "back", "left", "right", "threeq", "detail"],
-            "generation_paths": lambda *args, **kwargs: {"front": "dummy.png"},
-            "load_image": lambda *args: object(), "score_candidate": lambda *args: .9,
-            "generate_candidate": lambda *args: (RawMesh(), 1234),
-            "geometry_style_score": lambda *args: None, "mesh_mask": lambda *args: None,
-            "slugify": lambda value: "candidate", "cleanup_cuda": lambda: None,
-            "process_generated_candidates": process_generated_candidates,
-            "torch": types.SimpleNamespace(OutOfMemoryError=MemoryError),
-            "DownloadCancelled": DownloadCancelled}
-        exec(compile(ast.Module(body=[function], type_ignores=[]), "app.py", "exec"), namespace)
-        with patch("majd_studio_3d.processing.ProcessingService", return_value=self.service):
-            namespace["process_asset"](self.service.store.get_asset(self.asset))
+        engine = generation.GenerationEngine(self.service.store, None, self.service.app_dir, threading.Event(), threading.Lock())
+        engine.run_asset_preflight = lambda row: {"status": "PASS", "score": 1}
+        engine.load_image = lambda *args: object()
+        engine.generate_candidate = lambda *args: (RawMesh(), 1234)
+        with patch.multiple(generation, generation_paths=lambda *args, **kwargs: {"front": "dummy.png"},
+                            score_candidate=lambda *args: .9, geometry_style_score=lambda *args: None,
+                            mesh_mask=lambda *args: None, slugify=lambda value: "candidate"), \
+             patch("majd_studio_3d.processing.ProcessingService", return_value=self.service):
+            engine.process_asset(self.service.store.get_asset(self.asset))
         asset = self.service.store.get_asset(self.asset)
         candidate = json.loads(asset["candidates_json"])[0]
         self.assertEqual(candidate["processing"]["status"], "success")

@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from .constants import STATUS_AR
+from .processing_ui import format_count
 from .review_service import ReviewService
 
 
@@ -107,3 +109,41 @@ class ReviewController:
 
     def bulk_approve(self, asset_ids):
         return self.service.bulk_approve(asset_ids)
+
+    # -- generation-candidate read models (legacy candidates_json view) ---------
+
+    @staticmethod
+    def candidate_choices(items):
+        return [(f"Candidate {x.get('candidate', i + 1)} · {float(x.get('score') or 0) * 100:.1f}% · "
+                 f"{format_count(x.get('faces'))} faces", str(i)) for i, x in enumerate(items)]
+
+    def asset_summary(self, row, items):
+        style = self.store.get_style(row["style_id"])
+        project = self.store.get_project(row["project_id"])
+        pf = self.store.preflight_result(row["id"])
+        info = [f"Project: {project['name'] if project else '—'}", f"Style: {style['name'] if style else '—'}",
+                f"Style Lock: {'ON' if row['style_lock'] else 'OFF'}", f"Status: {STATUS_AR.get(row['status'], row['status'])}",
+                f"Current version: v{int(row['current_version']):03d}",
+                f"Preflight: {(pf or {}).get('status', 'NOT RUN')} · {float((pf or {}).get('score', 0)) * 100:.1f}%",
+                f"Calibrated views: {len((pf or {}).get('calibrated') or {})}"]
+        if items:
+            result, notes = self.store.style_lock_check(row["id"], items[0])
+            info += [f"Style Lock result: {result}", notes]
+        return "\n".join(info)
+
+    def candidate_summary(self, row, items, index):
+        """Return (clamped_index, details_text) for one candidate of an asset."""
+        try:
+            idx = max(0, min(int(index), len(items) - 1))
+        except (TypeError, ValueError):
+            idx = 0
+        item = items[idx]
+        result, notes = self.store.style_lock_check(row["id"], item)
+        conf = self.store.style_conformance_check(row["id"], item)
+        geom = item.get("style_geometry_score")
+        return idx, (f"Candidate {item['candidate']}\nSilhouette: {item['score'] * 100:.1f}%\n"
+                     f"Experimental geometry-style: {'—' if geom is None else f'{float(geom) * 100:.1f}%'}\n"
+                     f"Conformance overall: {float(conf['overall']) * 100:.1f}% · {conf['status']}\n"
+                     f"Seed: {item['seed']}\nResolution: {item['resolution']}\n"
+                     f"Vertices: {format_count(item.get('vertices'))}\nFaces: {format_count(item.get('faces'))}\n\n"
+                     f"Style Lock: {result}\n{notes}")

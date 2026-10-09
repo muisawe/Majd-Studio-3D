@@ -22,19 +22,14 @@ from __future__ import annotations
 
 import os
 import re
-import gc
 import sys
 import json
-import glob
 import uuid
-import math
 import shutil
-import traceback
 import threading
 import subprocess
 from pathlib import Path
 from datetime import datetime
-from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
 ROOT = Path(__file__).resolve().parents[1]
 MV_REPO = Path(r"E:\AI\Hunyuan3D-2-MV")
@@ -44,45 +39,25 @@ sys.path.insert(0, str(ROOT / "hy3dshape"))
 if MV_REPO.exists():
     sys.path.insert(0, str(MV_REPO))
 
-import numpy as np
 import torch
-import trimesh
 import gradio as gr
-from PIL import Image, ImageDraw
 
-from .store import V9Store, slugify
-from .input_qa import run_preflight, generation_paths, geometry_style_score, format_report
+from .store import V9Store
+from .input_qa import run_preflight, format_report
 from .model_manager import ModelManager, MODEL_SPECS, DownloadCancelled
 from .parts import PartsService, part_file
-from .processing import process_generated_candidates
 from .processing_controller import ProcessingController
 from .processing_gradio import mount_processing_panel
-from .processing_ui import format_count
 from .batch_controller import BatchController
 from .batch_gradio import mount_batch_panel
 from .review_controller import ReviewController
 from .review_gradio import mount_review_panel
 from .library_controller import LibraryController
 from .library_gradio import mount_library_panel
-try:
-    from hy3dshape.rembg import BackgroundRemover as BackgroundRemover21
-    from hy3dshape.pipelines import Hunyuan3DDiTFlowMatchingPipeline as Pipeline21
-    SINGLE_ERROR = ""
-except Exception as _single_exc:
-    BackgroundRemover21 = None
-    Pipeline21 = None
-    SINGLE_ERROR = str(_single_exc)
-
-try:
-    from hy3dgen.rembg import BackgroundRemover as BackgroundRemoverMV
-    from hy3dgen.shapegen import Hunyuan3DDiTFlowMatchingPipeline as PipelineMV
-    MV_READY = True
-    MV_ERROR = ""
-except Exception as _mv_exc:
-    BackgroundRemoverMV = None
-    PipelineMV = None
-    MV_READY = False
-    MV_ERROR = repr(_mv_exc)
+from .generation import GenerationEngine, MV_READY, MV_ERROR
+from .viewer_publisher import ViewerPublisher
+from .blender_finalize import BlenderFinalizer, find_blender
+from .constants import STATUS_AR, VIEW_KEYS
 
 # =============================================================================
 # Paths / store
@@ -126,40 +101,10 @@ print("=" * 96)
 # Viewer local server
 # =============================================================================
 
-class QuietHandler(SimpleHTTPRequestHandler):
-    def log_message(self, format, *args):
-        pass
-
-
-def ensure_viewer_state():
-    if VIEWER_STATE.exists():
-        return
-    VIEWER_STATE.write_text(json.dumps({
-        "version": uuid.uuid4().hex,
-        "assetName": "No asset selected",
-        "models": [],
-        "reference": None,
-        "referenceLabel": None,
-        "meta": {},
-    }, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
-def start_viewer_server():
-    ensure_viewer_state()
-    def handler(*args, **kwargs):
-        return QuietHandler(*args, directory=str(VIEWER_ROOT), **kwargs)
-    try:
-        server = ThreadingHTTPServer(("127.0.0.1", VIEWER_PORT), handler)
-    except OSError as exc:
-        print("Viewer server already running:", exc)
-        return None
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    print(f"Viewer: http://127.0.0.1:{VIEWER_PORT}/viewer.html")
-    return server
-
-
-VIEWER_SERVER = start_viewer_server()
-VIEWER_LOCK = threading.Lock()
+VIEWER = ViewerPublisher(STORE, VIEWER_ROOT, VIEWER_PORT)
+VIEWER_SERVER = VIEWER.start_server()
+publish_viewer = VIEWER.publish
+candidate_list = ViewerPublisher.candidate_list
 
 # =============================================================================
 # Hardware / Blender
@@ -172,17 +117,8 @@ else:
     GPU_TEXT = "CUDA غير متوفر"
 
 
-def find_blender():
-    found = []
-    for pattern in (
-        r"C:\Program Files\Blender Foundation\Blender*\blender.exe",
-        r"C:\Program Files\Blender Foundation\Blender *\blender.exe",
-    ):
-        found.extend(glob.glob(pattern))
-    return sorted(found)[-1] if found else None
-
-
 BLENDER = find_blender()
+BLENDER_FINALIZER = BlenderFinalizer(BLENDER)
 print("GPU:", GPU_TEXT)
 print("Blender:", BLENDER or "NOT FOUND")
 print("2mv:", "READY" if MV_READY else MV_ERROR)
@@ -200,16 +136,11 @@ PRESETS = {
     "مركبة": {"candidates":2,"steps":30,"guidance":5.0,"resolution":256,"target_size":4.2,"library":"Vehicles"},
 }
 TYPE_CHOICES = list(PRESETS.keys())
-VIEW_KEYS = ("front","back","left","right","threeq","detail")
 QUALITY = {
     "Draft": {"candidates":1,"steps":20,"resolution":128},
     "Balanced": {"candidates":3,"steps":30,"resolution":256},
     "High Quality": {"candidates":4,"steps":40,"resolution":384},
     "Custom": None,
-}
-STATUS_AR = {
-    "pending":"بانتظار البدء","processing":"قيد المعالجة","review":"بحاجة مراجعة",
-    "completed":"مكتمل","failed":"فشل","paused":"متوقف"
 }
 
 # =============================================================================
@@ -535,19 +466,6 @@ def preview_preflight_action(style_id,front,back,left,right,threeq,detail):
     return format_report(result),calibrated_front
 
 
-def run_asset_preflight(row):
-    style=STORE.get_style(row["style_id"])
-    original={k:row[f"{k}_path"] for k in VIEW_KEYS}
-    preflight_dir=Path(row["output_dir"])/"preflight"/uuid.uuid4().hex[:10]
-    result=run_preflight(
-        original,preflight_dir,
-        calibration_enabled=bool(style["calibration_enabled"]) if style else True,
-        calibration_canvas=int(style["calibration_canvas"]) if style else 1024,
-        target_occupancy=float(style["target_occupancy"]) if style else .82,
-    )
-    STORE.save_preflight(row["id"],result)
-    return result
-
 # =============================================================================
 # Asset creation / batch import
 # =============================================================================
@@ -657,327 +575,30 @@ def import_folder_action(
     if skipped: msg+="\nتم تجاهل: "+", ".join(skipped[:12])
     return msg,summary_html(project_id),queue_data(project_id),review_selector_update(project_id)
 
-# =============================================================================
-# Models
-# =============================================================================
-
-SINGLE_PIPE=None
-MV_PIPE=None
-REMBG_SINGLE=None
-REMBG_MV=None
-MODEL_LOCK=threading.Lock()
-
-
-def cleanup_cuda():
-    gc.collect()
-    if torch.cuda.is_available(): torch.cuda.empty_cache()
-
-
-def get_single_pipeline(progress=None):
-    global SINGLE_PIPE,MV_PIPE
-    with MODEL_LOCK:
-        if SINGLE_PIPE is not None: return SINGLE_PIPE
-        if Pipeline21 is None:
-            raise RuntimeError("كود Hunyuan3D-2.1 غير جاهز في بيئة التثبيت: " + SINGLE_ERROR)
-        if not torch.cuda.is_available():
-            raise RuntimeError("التوليد يحتاج GPU يدعم CUDA. يمكن تنزيل الأوزان منفصلًا من شاشة النماذج.")
-        MV_PIPE=None; cleanup_cuda()
-        model_path = MODEL_MANAGER.ensure("shape21", progress, DOWNLOAD_CANCEL)
-        SINGLE_PIPE=Pipeline21.from_pretrained(
-            str(model_path),subfolder="hunyuan3d-dit-v2-1",device="cuda",variant="fp16",use_safetensors=False
-        )
-        return SINGLE_PIPE
-
-
-def get_mv_pipeline(progress=None):
-    global SINGLE_PIPE,MV_PIPE
-    if not MV_READY: raise RuntimeError(MV_ERROR or "2mv unavailable")
-    with MODEL_LOCK:
-        if MV_PIPE is not None: return MV_PIPE
-        if not torch.cuda.is_available():
-            raise RuntimeError("التوليد يحتاج GPU يدعم CUDA. يمكن تنزيل الأوزان منفصلًا من شاشة النماذج.")
-        SINGLE_PIPE=None; cleanup_cuda()
-        model_path = MODEL_MANAGER.ensure("shape_mv", progress, DOWNLOAD_CANCEL)
-        MV_PIPE=PipelineMV.from_pretrained(
-            str(model_path),subfolder="hunyuan3d-dit-v2-mv",variant="fp16",use_safetensors=False
-        )
-        return MV_PIPE
-
-
-def get_rembg(engine):
-    global REMBG_SINGLE,REMBG_MV
-    if engine=="2mv":
-        if BackgroundRemoverMV is None: raise RuntimeError(MV_ERROR or "2mv runtime unavailable")
-        if REMBG_MV is None: REMBG_MV=BackgroundRemoverMV()
-        return REMBG_MV
-    if BackgroundRemover21 is None: raise RuntimeError(SINGLE_ERROR or "Hunyuan3D-2.1 runtime unavailable")
-    if REMBG_SINGLE is None: REMBG_SINGLE=BackgroundRemover21()
-    return REMBG_SINGLE
-
-
-def load_image(path,remove_bg,engine):
-    img=Image.open(path).convert("RGBA")
-    return get_rembg(engine)(img.convert("RGB")) if remove_bg else img
-
-# =============================================================================
-# Candidate QA
-# =============================================================================
-
-def ref_mask(image,size=256):
-    image=image.convert("RGBA"); arr=np.asarray(image); alpha=arr[:,:,3]
-    ys,xs=np.where(alpha>15)
-    if not len(xs): return None
-    crop=image.crop((xs.min(),ys.min(),xs.max()+1,ys.max()+1))
-    scale=min((size*.9)/max(crop.width,1),(size*.9)/max(crop.height,1))
-    crop=crop.resize((max(1,int(crop.width*scale)),max(1,int(crop.height*scale))),Image.Resampling.LANCZOS)
-    canvas=Image.new("L",(size,size),0)
-    canvas.paste(crop.getchannel("A"),((size-crop.width)//2,(size-crop.height)//2))
-    return np.asarray(canvas)>20
-
-
-def canonical_vertices(mesh):
-    v=np.asarray(mesh.vertices,dtype=np.float64); v-=v.mean(axis=0); ext=np.ptp(v,axis=0)
-    vertical=int(np.argmax(ext)); rem=[i for i in range(3) if i!=vertical]
-    width=rem[0] if ext[rem[0]]>=ext[rem[1]] else rem[1]; depth=rem[1] if width==rem[0] else rem[0]
-    out=np.column_stack([v[:,width],v[:,depth],v[:,vertical]]); h=np.ptp(out[:,2])
-    if h>1e-9: out/=h
-    return out
-
-
-def mesh_mask(mesh,angle=0,size=256):
-    v=canonical_vertices(mesh); t=math.radians(angle)
-    x=v[:,0]*math.cos(t)-v[:,1]*math.sin(t); z=v[:,2]; pts=np.column_stack([x,z])
-    mn,mx=pts.min(0),pts.max(0); span=np.maximum(mx-mn,1e-8)
-    scale=min((size*.88)/span[0],(size*.88)/span[1])
-    px=(pts[:,0]-(mn[0]+mx[0])/2)*scale+size/2; py=size/2-(pts[:,1]-(mn[1]+mx[1])/2)*scale
-    proj=np.column_stack([px,py]); im=Image.new("L",(size,size),0); draw=ImageDraw.Draw(im)
-    faces=np.asarray(mesh.faces)
-    if len(faces)>50000: faces=faces[::max(1,len(faces)//50000)]
-    for face in faces: draw.polygon([(float(proj[i,0]),float(proj[i,1])) for i in face],fill=255)
-    return np.asarray(im)>0
-
-
-def iou(a,b):
-    if a is None or b is None: return None
-    u=np.logical_or(a,b).sum(); return float(np.logical_and(a,b).sum()/u) if u else None
-
-
-def best_iou(gen,ref):
-    vals=[iou(gen,ref),iou(gen,np.fliplr(ref))]; vals=[v for v in vals if v is not None]
-    return max(vals) if vals else None
-
-
-def score_candidate(mesh,refs):
-    scores=[]
-    for key,angle in (("front",0),("back",180),("left",90),("right",-90)):
-        if key in refs:
-            s=best_iou(mesh_mask(mesh,angle),ref_mask(refs[key]));
-            if s is not None: scores.append(s)
-    if "threeq" in refs:
-        r=ref_mask(refs["threeq"]); scores.append(max(best_iou(mesh_mask(mesh,45),r) or 0,best_iou(mesh_mask(mesh,-45),r) or 0))
-    return float(np.mean(scores)) if scores else 0.0
-
-# =============================================================================
-# Generation / queue
-# =============================================================================
-
-STOP_AFTER_CURRENT=False
-
-
-def candidate_seed(row,index,attempt):
-    base=int(row["base_seed"])
-    if row["seed_strategy"]=="Fixed": return base
-    if row["seed_strategy"]=="Random": return int.from_bytes(os.urandom(4),"little")%2147483647
-    return base+index+attempt*1000
-
-
-def generate_candidate(row,refs,index,attempt,resolution,progress=None):
-    seed=candidate_seed(row,index,attempt); gen=torch.manual_seed(seed)
-    if row["engine"]=="2mv":
-        pipe=get_mv_pipeline(progress); input_images={k:refs[k] for k in ("front","back","left","right") if k in refs}
-        mesh=pipe(image=input_images,num_inference_steps=int(row["steps"]),guidance_scale=float(row["guidance"]),
-                  octree_resolution=int(resolution),num_chunks=20000,generator=gen,output_type="trimesh")[0]
-    else:
-        pipe=get_single_pipeline(progress)
-        mesh=pipe(image=refs["front"],num_inference_steps=int(row["steps"]),guidance_scale=float(row["guidance"]),
-                  octree_resolution=int(resolution),num_chunks=8000,generator=gen,output_type="trimesh")[0]
-    return mesh,seed
-
-
-def process_asset(row,progress=None):
-    aid=row["id"]; out=Path(row["output_dir"]); out.mkdir(parents=True,exist_ok=True)
-    STORE.update_asset(aid,status="processing",progress=2,message="فحص المدخلات")
-
-    preflight=run_asset_preflight(row)
-    style=STORE.get_style(row["style_id"])
-    if style and int(style["preflight_required"] or 0):
-        if preflight["status"]=="FAIL" or float(preflight["score"]) < float(style["min_preflight_score"] or 0):
-            raise RuntimeError(
-                f"Preflight gate failed: {preflight['status']} · {float(preflight['score'])*100:.1f}% "
-                f"(minimum {float(style['min_preflight_score'] or 0)*100:.1f}%)"
-            )
-
-    STORE.update_asset(aid,progress=5,message=f"Preflight {preflight['status']} {float(preflight['score'])*100:.0f}% · تحميل {row['engine']}")
-    original_paths={k:row[f"{k}_path"] for k in VIEW_KEYS}
-    use_calibrated=bool(row["use_calibrated"]) if "use_calibrated" in row.keys() else True
-    selected_paths=generation_paths(original_paths,preflight,use_calibrated=use_calibrated)
-    refs={}
-    for k in VIEW_KEYS:
-        p=selected_paths.get(k)
-        if p: refs[k]=load_image(p,bool(row["remove_bg"]),row["engine"])
-    if "front" not in refs: raise RuntimeError("Front missing")
-
-    style_refs=STORE.list_style_references(row["style_id"]) if row["style_id"] else []
-    items=[]; total=max(1,int(row["candidates"])); retries=max(0,int(row["retry_count"]))
-    for index in range(total):
-        success=False; last_error=None
-        for attempt in range(retries+1):
-            res=int(row["resolution"])
-            if attempt==1 and res>256: res=256
-            elif attempt>=2: res=128
-            try:
-                STORE.update_asset(aid,progress=8+int((index/total)*72),message=f"Candidate {index+1}/{total} · attempt {attempt+1}")
-                mesh,seed=generate_candidate(row,refs,index,attempt,res,progress)
-                cdir=out/f"candidate_{index+1:02d}"; cdir.mkdir(exist_ok=True)
-                glb=cdir/f"{slugify(row['name'])}_c{index+1:02d}.glb"; mesh.export(str(glb))
-                score=score_candidate(mesh,refs)
-                geometry_score=geometry_style_score(mesh_mask(mesh,0),style_refs) if style_refs else None
-                item={"candidate":index+1,"seed":int(seed),"resolution":res,"score":score,
-                      "style_geometry_score":geometry_score,
-                      "vertices":int(len(mesh.vertices)),"faces":int(len(mesh.faces)),"glb":str(glb)}
-                (cdir/"candidate.json").write_text(json.dumps(item,ensure_ascii=False,indent=2),encoding="utf-8")
-                items.append(item); success=True; break
-            except torch.OutOfMemoryError as exc:
-                last_error=exc; cleanup_cuda()
-            except DownloadCancelled:
-                raise
-            except Exception as exc:
-                last_error=exc; print(traceback.format_exc()); cleanup_cuda()
-        if not success: print("Candidate failed:",row["name"],index+1,repr(last_error))
-    if not items: raise RuntimeError("فشلت جميع الـCandidates")
-    items.sort(key=lambda x:x["score"],reverse=True)
-    items=process_generated_candidates(items,row["engine"],APP_DIR,STORE,progress,DOWNLOAD_CANCEL,
-        project_id=row["project_id"],asset_id=aid)
-    STORE.update_asset(aid,status="review",progress=100,candidates_json=json.dumps(items,ensure_ascii=False),
-                       best_glb=items[0]["glb"],best_score=items[0]["score"],
-                       message=f"Preflight {preflight['status']} {float(preflight['score'])*100:.0f}% · جاهز للمراجعة")
-    STORE.sync_review_candidates(aid)
-    cleanup_cuda()
-
+ENGINE = GenerationEngine(STORE, MODEL_MANAGER, APP_DIR, DOWNLOAD_CANCEL, GPU_TASK_LOCK)
 
 def start_batch_action(project_id,group_by_engine,progress=gr.Progress()):
-    global STOP_AFTER_CURRENT
-    STOP_AFTER_CURRENT=False
-    DOWNLOAD_CANCEL.clear()
-    rows=list(STORE.list_assets(project_id=project_id,statuses=["pending","failed"]))
-    if not rows:
-        return "لا توجد عناصر بانتظار المعالجة.",summary_html(project_id),queue_data(project_id),review_selector_update(project_id)
-    if group_by_engine: rows.sort(key=lambda r:(r["engine"],r["created_at"]))
-    failures=0
-    for i,row in enumerate(rows):
-        if STOP_AFTER_CURRENT: break
-        progress(i/max(1,len(rows)),desc=f"{row['name']} — {i+1}/{len(rows)}")
-        try:
-            with GPU_TASK_LOCK:
-                process_asset(row,lambda fraction,text: progress(fraction,desc=text))
-        except DownloadCancelled:
-            STORE.update_asset(row["id"],status="pending",progress=0,message="توقف تنزيل النموذج؛ يمكن استكماله لاحقًا")
-            STOP_AFTER_CURRENT=True
-            break
-        except Exception as exc:
-            failures+=1; print(traceback.format_exc())
-            STORE.update_asset(row["id"],status="failed",progress=0,message=f"{type(exc).__name__}: {str(exc)[:220]}")
-    msg="تم التوقف بعد الأصل الحالي." if STOP_AFTER_CURRENT else f"انتهت الدفعة. فشل: {failures}/{len(rows)}"
+    msg=ENGINE.run_batch(project_id,group_by_engine,lambda fraction,text: progress(fraction,desc=text))
     return msg,summary_html(project_id),queue_data(project_id),review_selector_update(project_id)
 
 
 def stop_batch_action():
-    global STOP_AFTER_CURRENT
-    STOP_AFTER_CURRENT=True
-    return "سيتم التوقف بعد الأصل الحالي."
+    return ENGINE.request_stop()
 
 # =============================================================================
 # Three.js publishing
 # =============================================================================
 
-def clear_viewer_data():
-    for p in VIEWER_DATA.iterdir():
-        if p.name=="state.json": continue
-        try:
-            if p.is_file(): p.unlink()
-            elif p.is_dir(): shutil.rmtree(p)
-        except Exception: pass
-
-
-def candidate_list(row):
-    if not row or not row["candidates_json"]: return []
-    try:
-        items=json.loads(row["candidates_json"])
-        return [item for item in items if isinstance(item,dict)] if isinstance(items,list) else []
-    except Exception: return []
-
-
-def publish_viewer(row,selected_index=0,preview=None):
-    with VIEWER_LOCK:
-        clear_viewer_data(); version=uuid.uuid4().hex[:10]
-        if not row:
-            payload={"version":version,"assetName":"No asset selected","models":[],"reference":None,"referenceLabel":None,"meta":{}}
-            VIEWER_STATE.write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8"); return
-        items=candidate_list(row)
-        if not items and row["best_glb"] and Path(row["best_glb"]).exists():
-            items=[{"candidate":1,"score":float(row["best_score"] or 0),"vertices":0,"faces":0,"seed":0,"resolution":0,"glb":row["best_glb"]}]
-        if items:
-            selected_index=max(0,min(int(selected_index or 0),len(items)-1)); items=[items[selected_index]]+[x for i,x in enumerate(items) if i!=selected_index]
-        if preview:
-            items=[{**(items[0] if items else {}),**preview}]
-        models=[]
-        for i,item in enumerate(items[:3]):
-            if not item.get("glb"): continue
-            src=Path(item["glb"])
-            if not src.exists(): continue
-            dst=VIEWER_DATA/f"model_{i}_{version}.glb"; shutil.copy2(src,dst)
-            processing=item.get("processing") or {}
-            kind="Processed" if processing.get("status")=="success" else ("Raw fallback" if processing.get("raw_fallback") else "Raw")
-            models.append({"url":f"data/{dst.name}","label":item.get("label") or f"Candidate {item.get('candidate',i+1)} · {kind}",
-                           "score":round(float(item["score"])*100,2) if item.get("score") is not None else None,"vertices":item.get("vertices"),
-                           "faces":item.get("faces"),"seed":int(item.get("seed",0)),"resolution":int(item.get("resolution",0))})
-        ref=None
-        pf=STORE.preflight_result(row["id"])
-        calibrated_front=((pf or {}).get("calibrated") or {}).get("front",{}).get("path")
-        source_ref=calibrated_front if calibrated_front and Path(calibrated_front).exists() else row["front_path"]
-        if source_ref and Path(source_ref).exists():
-            src=Path(source_ref); dst=VIEWER_DATA/f"reference_{version}{src.suffix.lower() or '.png'}"; shutil.copy2(src,dst); ref=f"data/{dst.name}"
-        p=STORE.get_project(row["project_id"]); s=STORE.get_style(row["style_id"])
-        payload={"version":version,"assetName":row["name"],"models":models,"reference":ref,
-                 "referenceLabel":"Front reference" if ref else None,
-                 "meta":{"project":p["name"] if p else "","style":s["name"] if s else "","assetType":row["asset_type"],
-                         "engine":row["engine"],"views":sum(bool(row[f'{k}_path']) for k in VIEW_KEYS),
-                         "status":STATUS_AR.get(row["status"],row["status"]),"version":int(row["current_version"])}}
-        VIEWER_STATE.write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8")
-
-
-VIEWER_IFRAME=f'<iframe src="http://127.0.0.1:{VIEWER_PORT}/viewer.html" style="width:100%;height:720px;border:0;border-radius:8px;background:#0c0e12" allow="fullscreen"></iframe>'
+VIEWER_IFRAME=VIEWER.iframe
 
 # =============================================================================
 # Review / Blender / versions
 # =============================================================================
 
-def run_blender(row,source_glb):
-    if not BLENDER: return None,None
-    work=Path(row["output_dir"])/"blender_work"; work.mkdir(parents=True,exist_ok=True)
-    blend=work/f"{slugify(row['name'])}.blend"; thumb=work/"thumbnail.png"; script=work/"_finalize.py"
-    code=f'''import bpy\nfrom mathutils import Vector\nGLB={repr(str(Path(source_glb).resolve()))}\nBLEND={repr(str(blend.resolve()))}\nTHUMB={repr(str(thumb.resolve()))}\nTARGET={float(row['target_size'])!r}\nUNIT={repr(row['unit'])}\nbpy.ops.object.select_all(action="SELECT")\nbpy.ops.object.delete(use_global=False)\nbpy.ops.import_scene.gltf(filepath=GLB)\nmeshes=[o for o in bpy.context.scene.objects if o.type=="MESH"]\nif not meshes: raise RuntimeError("No mesh")\ndef bounds():\n pts=[]\n for o in meshes:\n  for c in o.bound_box: pts.append(o.matrix_world@Vector(c))\n mn=Vector((min(p.x for p in pts),min(p.y for p in pts),min(p.z for p in pts)))\n mx=Vector((max(p.x for p in pts),max(p.y for p in pts),max(p.z for p in pts)))\n return mn,mx\nmn,mx=bounds(); h=max(mx.z-mn.z,1e-8); target=TARGET/100.0 if UNIT=="cm" else TARGET; sc=target/h\nfor o in meshes:\n o.scale=tuple(v*sc for v in o.scale)\n for poly in o.data.polygons: poly.use_smooth=True\nbpy.context.view_layer.update(); mn,mx=bounds()\nfor o in meshes: o.location.z-=mn.z\nbpy.context.view_layer.update(); mn,mx=bounds(); center=(mn+mx)*.5; extent=max(mx.x-mn.x,mx.y-mn.y,mx.z-mn.z,.1)\ncamd=bpy.data.cameras.new("PreviewCamera"); cam=bpy.data.objects.new("PreviewCamera",camd); bpy.context.scene.collection.objects.link(cam)\ncam.location=(center.x+extent*1.4,center.y-extent*2,center.z+extent); cam.rotation_euler=(center-cam.location).to_track_quat("-Z","Y").to_euler(); camd.type="ORTHO"; camd.ortho_scale=extent*1.35; bpy.context.scene.camera=cam\nld=bpy.data.lights.new("Key","AREA"); l=bpy.data.objects.new("Key",ld); bpy.context.scene.collection.objects.link(l); l.location=(center.x+extent,center.y-extent,center.z+extent*2); ld.energy=900; ld.size=extent\nscene=bpy.context.scene; scene.render.engine="BLENDER_EEVEE_NEXT"; scene.render.resolution_x=512; scene.render.resolution_y=512; scene.render.resolution_percentage=100; scene.render.image_settings.file_format="PNG"; scene.render.filepath=THUMB\nbpy.ops.render.render(write_still=True); bpy.ops.wm.save_as_mainfile(filepath=BLEND)\n'''
-    script.write_text(code,encoding="utf-8")
-    flags=subprocess.CREATE_NO_WINDOW if os.name=="nt" else 0
-    result=subprocess.run([BLENDER,"--background","--python",str(script)],creationflags=flags)
-    if result.returncode!=0 or not blend.exists(): return None,None
-    return str(blend),str(thumb) if thumb.exists() else None
-
-
 def prepare_review_approval(asset,candidate):
     # Reuse finalization with an isolated directory for each approval attempt.
     context={**asset,"output_dir":str(Path(asset["output_dir"])/"review_finalize"/uuid.uuid4().hex)}
-    return run_blender(context,json.loads(candidate["artifacts_json"])["glb"])
+    return BLENDER_FINALIZER.finalize(context,json.loads(candidate["artifacts_json"])["glb"])
 
 
 def library_view_version_action(asset_id,version_id):
@@ -1024,34 +645,18 @@ def review_asset_changed(asset_id):
     if not row:
         publish_viewer(None); return gr.update(choices=[],value=None),"",[],None,None
     items=candidate_list(row)
-    choices=[(f"Candidate {x.get('candidate',i+1)} · {float(x.get('score') or 0)*100:.1f}% · {format_count(x.get('faces'))} faces",str(i)) for i,x in enumerate(items)]
+    choices=REVIEW_UI.candidate_choices(items)
     publish_viewer(row,0)
-    style=STORE.get_style(row["style_id"]); project=STORE.get_project(row["project_id"])
-    pf=STORE.preflight_result(row["id"])
-    info=[f"Project: {project['name'] if project else '—'}",f"Style: {style['name'] if style else '—'}",
-          f"Style Lock: {'ON' if row['style_lock'] else 'OFF'}",f"Status: {STATUS_AR.get(row['status'],row['status'])}",
-          f"Current version: v{int(row['current_version']):03d}",
-          f"Preflight: {(pf or {}).get('status','NOT RUN')} · {float((pf or {}).get('score',0))*100:.1f}%",
-          f"Calibrated views: {len((pf or {}).get('calibrated') or {})}"]
-    if items:
-        result,notes=STORE.style_lock_check(row["id"],items[0]); info += [f"Style Lock result: {result}",notes]
     latest=STORE.latest_version(row["id"])
-    return gr.update(choices=choices,value="0" if choices else None),"\n".join(info),version_data(row["id"]),latest["glb_path"] if latest else None,latest["blend_path"] if latest else None
+    return gr.update(choices=choices,value="0" if choices else None),REVIEW_UI.asset_summary(row,items),version_data(row["id"]),latest["glb_path"] if latest else None,latest["blend_path"] if latest else None
 
 
 def review_candidate_changed(asset_id,index):
     row=STORE.get_asset(asset_id); items=candidate_list(row)
     if not row or not items: return "لا يوجد Candidate."
-    try: idx=max(0,min(int(index),len(items)-1))
-    except Exception: idx=0
-    item=items[idx]; publish_viewer(row,idx); result,notes=STORE.style_lock_check(row["id"],item)
-    conf=STORE.style_conformance_check(row["id"],item)
-    geom=item.get("style_geometry_score")
-    return (f"Candidate {item['candidate']}\nSilhouette: {item['score']*100:.1f}%\n"
-            f"Experimental geometry-style: {'—' if geom is None else f'{float(geom)*100:.1f}%'}\n"
-            f"Conformance overall: {float(conf['overall'])*100:.1f}% · {conf['status']}\n"
-            f"Seed: {item['seed']}\nResolution: {item['resolution']}\n"
-            f"Vertices: {format_count(item.get('vertices'))}\nFaces: {format_count(item.get('faces'))}\n\nStyle Lock: {result}\n{notes}")
+    idx,details=REVIEW_UI.candidate_summary(row,items,index)
+    publish_viewer(row,idx)
+    return details
 
 
 def approve_candidate_action(project_id,asset_id,index,override_style_lock):
@@ -1089,7 +694,7 @@ def requeue_action(project_id,asset_id):
 def processing_review_completed(asset_id,index):
     info=review_candidate_changed(asset_id,index)
     items=candidate_list(STORE.get_asset(asset_id))
-    choices=[(f"Candidate {item.get('candidate',i+1)} · {float(item.get('score') or 0)*100:.1f}% · {format_count(item.get('faces'))} faces",str(i)) for i,item in enumerate(items)]
+    choices=REVIEW_UI.candidate_choices(items)
     return info,gr.update(choices=choices,value=str(index or 0) if items else None)
 
 
@@ -1196,11 +801,7 @@ def cancel_download_action():
 
 
 def release_generation_models():
-    global SINGLE_PIPE,MV_PIPE
-    with MODEL_LOCK:
-        SINGLE_PIPE=None
-        MV_PIPE=None
-        cleanup_cuda()
+    ENGINE.release_models()
 
 
 def parts_asset_selector_update(project_id):

@@ -18,7 +18,9 @@ from majd_studio_3d.processing import process_generated_candidates
 from majd_studio_3d.processing_controller import ProcessingController
 from majd_studio_3d.processing_gradio import mount_processing_panel
 from majd_studio_3d.processing_ui import format_count
+from majd_studio_3d.constants import STATUS_AR, VIEW_KEYS
 from majd_studio_3d.review_controller import ReviewController
+from majd_studio_3d.viewer_publisher import ViewerPublisher
 from majd_studio_3d.review_gradio import mount_review_panel
 from majd_studio_3d.library_controller import LibraryController
 from majd_studio_3d.library_gradio import mount_library_panel
@@ -47,6 +49,9 @@ def build_studio_ui(fixture):
         "VIEWER_STATE": viewer_data / "state.json", "VIEWER_IFRAME": '<div>Model viewer</div>',
         "Path": Path, "json": json, "os": os, "shutil": shutil, "uuid": uuid,
     }
+    viewer = ViewerPublisher(store, fixture.root / "viewer")
+    namespace.update(STATUS_AR=STATUS_AR, VIEW_KEYS=VIEW_KEYS, VIEWER=viewer, publish_viewer=viewer.publish,
+                     candidate_list=ViewerPublisher.candidate_list, VIEWER_IFRAME=viewer.iframe)
     namespace["BATCH_UI"] = BatchController(fixture.service.app_dir, store, namespace["PROCESSING_UI"], namespace["GPU_TASK_LOCK"])
     namespace["mount_batch_panel"] = mount_batch_panel
     namespace["REVIEW_UI"] = ReviewController(store, namespace["BATCH_UI"])

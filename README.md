@@ -13,6 +13,11 @@ majd_studio_3d/
   model_manager.py تنزيل أوزان النماذج والتحقق منها واستكمالها
   parts.py        تجهيز بيئة الأجزاء وتشغيل المهام
   parts_worker.py تكامل P3-SAM وXPart داخل عملية منفصلة
+  generation.py   محرك توليد Hunyuan وتنفيذ الدفعات (بدون Gradio)
+  candidate_qa.py مقارنة Silhouette للمرشحين مع المراجع
+  viewer_publisher.py نشر حالة العارض وخادمه المحلي
+  blender_finalize.py اكتشاف Blender وإنهاء الأصل المعتمد
+  constants.py    ثوابت مشتركة (VIEW_KEYS وSTATUS_AR)
 viewer/           واجهة Three.js المستقلة
 scripts/          بناء الحزم وتثبيت Windows وتشغيله
 tests/            اختبارات التخزين والتحديث
