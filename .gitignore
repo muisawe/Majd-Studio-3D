@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+dist/
+.omx/
+majd_v9/
+majd_viewer_v9/
+viewer/data/
+viewer/vendor/
+.DS_Store
+.ruff_cache/

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta name="theme-color" content="#0c0e12"/>
+  <title>Model Viewer · Majd Studio 3D</title>
+  <link rel="stylesheet" href="./viewer.css"/>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three.module.min.js"
+  }
+}
+</script>
+</head>
+<body>
+<div id="app">
+  <header class="toolbar">
+    <div class="brand">
+      <span class="brand-kicker">Majd Studio 3D / Model Viewer</span>
+      <strong id="assetName">No asset selected</strong>
+      <span id="assetMeta">Select an asset to begin reviewing</span>
+    </div>
+
+    <div class="toolbar-controls">
+      <div class="toolgroup" role="group" aria-label="Layout">
+        <button type="button" data-layout="single" class="active">Single</button>
+        <button type="button" data-layout="compare">Compare</button>
+      </div>
+
+      <div class="toolgroup" role="group" aria-label="Camera view">
+        <button type="button" data-view="front">Front</button>
+        <button type="button" data-view="back">Back</button>
+        <button type="button" data-view="left">Left</button>
+        <button type="button" data-view="right">Right</button>
+        <button type="button" data-view="threeq">3/4</button>
+        <button type="button" data-view="top">Top</button>
+        <button type="button" data-view="reset">Reset</button>
+      </div>
+
+      <div class="toolgroup" role="group" aria-label="Model appearance">
+        <button type="button" data-style="material" class="active">Material</button>
+        <button type="button" data-style="clay">Clay</button>
+        <button type="button" data-style="wire">Wire</button>
+        <button type="button" data-style="silhouette">Silhouette</button>
+        <button type="button" data-style="normals">Normals</button>
+      </div>
+
+      <div class="toolgroup" role="group" aria-label="Viewer options">
+        <button type="button" id="cameraToggle">Perspective</button>
+        <button type="button" id="gridToggle" class="active">Grid</button>
+        <button type="button" id="rotateToggle">Auto Rotate</button>
+        <button type="button" id="fullscreen">Fullscreen</button>
+      </div>
+    </div>
+  </header>
+
+  <section class="overlaybar" aria-label="Reference overlay controls">
+    <label class="overlay-toggle"><input id="overlayToggle" type="checkbox"/> Reference overlay</label>
+    <label class="sliderLabel">Opacity <input id="overlayOpacity" type="range" min="0" max="1" value="0.45" step="0.01"/></label>
+    <span id="referenceLabel">No reference</span>
+    <span class="hint">For best alignment, use Front and Orthographic views</span>
+  </section>
+
+  <main id="viewerGrid" class="single" aria-label="3D model viewports"></main>
+
+  <footer class="footer">
+    <div id="modelStats">No model loaded</div>
+    <div id="viewerStatus" role="status" aria-live="polite">Waiting for model data…</div>
+  </footer>
+</div>
+<script type="module" src="./viewer.js"></script>
+</body>
+</html>

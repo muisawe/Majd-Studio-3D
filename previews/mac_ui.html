@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Majd Studio 3D — معاينة Mac</title>
+  <link rel="stylesheet" href="./mac_ui.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="top">
+      <div class="identity"><div class="mark" aria-hidden="true">M</div><div><h1>Majd Studio</h1><p>استوديو الأصول ثلاثية الأبعاد</p></div></div>
+      <span class="mode">معاينة تفاعلية</span>
+    </header>
+
+    <div class="notice" role="status"><span>هذه معاينة للواجهة ببيانات توضيحية؛ الصور التي تختارها تبقى داخل متصفحك.</span><small>التوليد والحفظ غير متاحين في المعاينة.</small></div>
+
+    <div class="context" aria-label="سياق المشروع التجريبي">
+      <div class="field">المشروع<div class="value">Sami Stories</div></div>
+      <div class="field">النمط الفني<div class="value">Majd Soft 3D <span class="badge green">قواعد النمط مفعّلة</span></div></div>
+      <div class="field">بيئة العرض<div class="value">معاينة محلية على Mac</div></div>
+    </div>
+
+    <nav class="nav" role="tablist" aria-label="أقسام الاستوديو">
+      <button id="tab-projects" role="tab" aria-controls="projects" aria-selected="true" tabindex="0">المشاريع</button>
+      <button id="tab-styles" role="tab" aria-controls="styles" aria-selected="false" tabindex="-1">الأنماط الفنية</button>
+      <button id="tab-setup" role="tab" aria-controls="setup" aria-selected="false" tabindex="-1">إعداد الأصل</button>
+      <button id="tab-batch" role="tab" aria-controls="batch" aria-selected="false" tabindex="-1">الإنتاج</button>
+      <button id="tab-review" role="tab" aria-controls="review" aria-selected="false" tabindex="-1">المراجعة</button>
+      <button id="tab-parts" role="tab" aria-controls="parts" aria-selected="false" tabindex="-1">الأجزاء</button>
+      <button id="tab-models" role="tab" aria-controls="models" aria-selected="false" tabindex="-1">النماذج والتنزيل</button>
+      <button id="tab-library" role="tab" aria-controls="library" aria-selected="false" tabindex="-1">المكتبة</button>
+    </nav>
+
+    <section id="projects" role="tabpanel" aria-labelledby="tab-projects">
+      <div class="heading"><div><h2>لوحة المشروع</h2><p class="muted">ملخص الأصول والإنتاج والمراجعة في مكان واحد.</p></div></div>
+      <div class="stats"><div class="stat"><strong>01</strong>مشروع</div><div class="stat"><strong>02</strong>أنماط فنية</div><div class="stat"><strong>06</strong>أصول</div><div class="stat"><strong>03</strong>في قائمة الإنتاج</div><div class="stat"><strong>02</strong>إصدارات معتمدة</div></div>
+      <div class="grid equal"><div class="panel"><h3>المشروع الحالي</h3><div class="card"><strong>Sami Stories</strong><p>مشروع شخصيات وبيئات. النمط الافتراضي: Majd Soft 3D.</p></div><div class="card"><strong>سير العمل</strong><p>إعداد الأصل ← فحص الصور ← توليد ← مراجعة بشرية ← اعتماد الإصدار.</p></div></div><div class="panel"><h3>آخر النشاطات</h3><div class="card"><strong>كرسي خشبي · v002</strong><p>تمت المراجعة البصرية والاعتماد ضمن مكتبة المشروع.</p></div><div class="card"><strong>شخصية سامي · v001</strong><p>مرشح جاهز للمراجعة. المعاينة لا تعرض ملفًا مولّدًا.</p></div></div></div>
+    </section>
+
+    <section id="styles" role="tabpanel" aria-labelledby="tab-styles" hidden>
+      <div class="heading"><div><h2>الأنماط الفنية</h2><p class="muted">شكل إعدادات النمط ومرجعياته في الواجهة الأساسية.</p></div><span class="badge">للعرض فقط</span></div>
+      <div class="grid"><div class="panel"><h3>Majd Soft 3D <span class="badge green">Style Lock ON</span></h3><div class="settings"><div class="field">Shape Language<div class="value">أشكال لينة، حواف مريحة، أحجام واضحة</div></div><div class="field">Palette<div class="value">ألوان دافئة هادئة</div></div><div class="field">Face Budget<div class="value">50,000</div></div><div class="field">Generation Engine<div class="value">Auto</div></div><div class="field">Min Silhouette<div class="value">70%</div></div><div class="field">Min Preflight<div class="value">75%</div></div><div class="field wide">Multi-View Calibration<div class="value">مفعّل · Canvas 1024 · Subject Height 82%</div></div></div></div><div class="panel"><h3>المراجع المعتمدة</h3><div class="card"><strong>Front · Shape / Silhouette</strong><p>مرجع أمامي معتمد · وزن 1.0</p></div><div class="card"><strong>3/4 · Palette</strong><p>مرجع ألوان معتمد · وزن 0.8</p></div><p class="muted">صور المراجع هنا بيانات توضيحية.</p></div></div>
+    </section>
+
+    <section id="setup" role="tabpanel" aria-labelledby="tab-setup" hidden>
+      <div class="heading"><div><h2>إعداد الأصل</h2><p class="muted">يمكنك اختيار صور محلية لمعاينة مواضعها دون رفعها أو تحليلها.</p></div><span class="badge">معاينة صور محلية</span></div>
+      <div class="grid"><div class="panel"><h3>بيانات الأصل</h3><div class="settings"><div class="field">اسم الأصل<div class="value">شخصية سامي</div></div><div class="field">النوع<div class="value">شخصية</div></div><div class="field">Library Category<div class="value">Characters</div></div><div class="field">Generation Engine<div class="value">Auto</div></div></div><h3 class="spaced">Multi-View References</h3><div class="image-grid">
+        <label class="image-slot"><span>Front · اختر صورة</span><input type="file" accept="image/*" aria-label="صورة Front"></label>
+        <label class="image-slot"><span>Back · اختر صورة</span><input type="file" accept="image/*" aria-label="صورة Back"></label>
+        <label class="image-slot"><span>Left · اختر صورة</span><input type="file" accept="image/*" aria-label="صورة Left"></label>
+        <label class="image-slot"><span>Right · اختر صورة</span><input type="file" accept="image/*" aria-label="صورة Right"></label>
+        <label class="image-slot"><span>3/4 · اختر صورة</span><input type="file" accept="image/*" aria-label="صورة 3/4"></label>
+        <label class="image-slot"><span>Detail · اختر صورة</span><input type="file" accept="image/*" aria-label="صورة Detail"></label>
+      </div></div><div class="panel"><h3>إعدادات التوليد</h3><div class="settings"><div class="field">Quality<div class="value">Balanced</div></div><div class="field">Candidates<div class="value">3</div></div><div class="field">Steps<div class="value">30</div></div><div class="field">Resolution<div class="value">256</div></div></div><div class="card spaced"><strong>Input Preflight</strong><p>الفحص وCalibration متاحان عند تشغيل التطبيق الكامل على جهاز الإنتاج.</p></div></div></div>
+    </section>
+
+    <section id="batch" role="tabpanel" aria-labelledby="tab-batch" hidden>
+      <div class="heading"><div><h2>قائمة الإنتاج</h2><p class="muted">شكل قائمة الإنتاج وحالاتها فقط.</p></div><span class="badge">بيانات تجريبية</span></div>
+      <div class="grid"><div class="panel"><h3>قائمة المشروع</h3><div class="table-wrap"><table><thead><tr><th>الأصل</th><th>Style</th><th>Engine</th><th>الحالة</th><th>التقدم</th></tr></thead><tbody><tr><td>شخصية سامي</td><td>Majd Soft 3D</td><td>Multi-View 2mv</td><td><span class="badge amber">للمراجعة</span></td><td>100%</td></tr><tr><td>كرسي خشبي</td><td>Majd Soft 3D</td><td>Single View 2.1</td><td><span class="badge green">معتمد</span></td><td>100%</td></tr><tr><td>مصباح غرفة</td><td>Majd Soft 3D</td><td>Auto</td><td><span class="badge">قيد الانتظار</span></td><td>0%</td></tr></tbody></table></div></div><div class="panel"><h3>إعدادات الدفعة</h3><div class="card"><strong>Group by Engine</strong><p>تنظيم عناصر الدفعة حسب محرك التوليد.</p></div><div class="card"><strong>Skip Existing</strong><p>عدم إعادة توليد الملفات الموجودة.</p></div><p class="muted">زر بدء الدفعة غير موجود في وضع العرض.</p></div></div>
+    </section>
+
+    <section id="review" role="tabpanel" aria-labelledby="tab-review" hidden>
+      <div class="heading"><div><h2>مراجعة المرشحين</h2><p class="muted">تخطيط شاشة مراجعة المرشحين؛ لا يوجد موديل محمّل في هذه المعاينة.</p></div><span class="badge">بدون توليد</span></div>
+      <div class="grid"><div class="panel"><h3>عارض الأصل</h3><div class="empty-3d"><div class="cube" aria-hidden="true">◇</div><strong>مكان عارض الـ 3D</strong><p>يعرض التطبيق الكامل ملفات GLB الناتجة هنا. هذه شاشة توضيحية فقط.</p></div></div><div class="panel"><h3>الجودة وقواعد النمط</h3><div class="card"><strong>شخصية سامي · Candidate 1</strong><p>المقارنة مع صور المرجع والتقييم البصري تتم داخل التطبيق الكامل.</p></div><div class="card"><strong>Silhouette Score · 86%</strong><div class="bar"><span style="width:86%"></span></div></div><div class="card"><strong>Preflight Score · 91%</strong><div class="bar"><span style="width:91%"></span></div></div><p class="muted">الدرجات هنا أمثلة وليست نتائج حساب حقيقية.</p></div></div>
+    </section>
+
+    <section id="parts" role="tabpanel" aria-labelledby="tab-parts" hidden>
+      <div class="heading"><div><h2>تقسيم الأصل إلى أجزاء</h2><p class="muted">تحديد الأجزاء باستخدام P3-SAM، ثم إعادة بنائها عبر XPart عند الحاجة.</p></div></div>
+      <div class="grid"><div class="panel"><h3>مصدر المجسم</h3><div class="settings"><div class="field wide">الأصل المعتمد<div class="value">كرسي خشبي · v002</div></div><div class="field">طريقة العمل<div class="value">P3-SAM · تقسيم الأجزاء</div></div><div class="field">إعادة البناء<div class="value">XPart · اختياري</div></div><div class="field">معالجة القطع الصغيرة<div class="value">مفعّلة · 0.95</div></div><div class="field">دقة XPart<div class="value">256</div></div></div><div class="row spaced"><button class="preview-button" disabled>تنزيل وتجهيز الأدوات</button><button class="preview-button primary" disabled>تقسيم المجسم</button></div><p class="muted">هذه معاينة للشاشة. التشغيل والتنزيل متاحان داخل تطبيق Windows.</p></div><div class="panel"><h3>نتائج الأجزاء</h3><div class="empty-3d"><strong>المجسم والأجزاء المنفصلة</strong><p>يحتفظ التطبيق بالأصل ونتيجة التقسيم، ويتيح تنزيل كل جزء أو اعتماد نسخته في المشروع.</p></div><div class="card spaced"><strong>رجل الكرسي · Part 001</strong><p>يمكن تسمية الجزء واعتماده كأصل مستقل مع الاحتفاظ بعلاقته بالمصدر.</p></div></div></div>
+    </section>
+
+    <section id="models" role="tabpanel" aria-labelledby="tab-models" hidden>
+      <div class="heading"><div><h2>النماذج والتنزيل</h2><p class="muted">الأوزان الناقصة تُنزّل عند الاستخدام، وتُستكمل البيانات المحفوظة بعد انقطاع الاتصال.</p></div></div>
+      <div class="grid"><div class="panel"><h3>تنزيل النموذج</h3><div class="field">النموذج<div class="value">Hunyuan3D 2.1 · التوليد الأساسي</div></div><div class="card spaced"><strong>عرض تقدم التنزيل · مثال</strong><p dir="ltr">2.94 / 7.37 GB · 40%</p><div class="bar"><span style="width:40%"></span></div></div><div class="row spaced"><button class="preview-button primary" disabled>تنزيل النموذج الناقص</button><button class="preview-button" disabled>إيقاف التنزيل</button></div><p class="muted">لا تُنزّل هذه المعاينة أوزانًا فعلية. شريط التقدم داخل التطبيق يعتمد على البايتات التي وصلت بالفعل.</p></div><div class="panel"><h3>المكونات</h3><div class="table-wrap"><table><thead><tr><th>المكون</th><th>الاستخدام</th></tr></thead><tbody><tr><td>Hunyuan3D 2.1 / 2mv</td><td>توليد المجسم الأساسي</td></tr><tr><td>P3-SAM + Sonata</td><td>تحديد الأجزاء</td></tr><tr><td>XPart</td><td>إعادة بناء الأجزاء</td></tr></tbody></table></div><div class="card spaced"><strong>أوزان محفوظة وإعادة استخدام</strong><p>يفحص التطبيق الملفات الموجودة ويعيد استخدامها، ويحفظ التنزيل الجزئي ليستكمله في المحاولة التالية.</p></div></div></div>
+    </section>
+
+    <section id="library" role="tabpanel" aria-labelledby="tab-library" hidden>
+      <div class="heading"><div><h2>مكتبة الأصول</h2><p class="muted">معاينة إدارة الأصول والإصدارات.</p></div><span class="badge">بيانات تجريبية</span></div>
+      <div class="grid"><div class="panel"><h3>الأصول</h3><div class="table-wrap"><table><thead><tr><th>Asset</th><th>Type</th><th>Scope</th><th>Style</th><th>Version</th></tr></thead><tbody><tr><td>كرسي خشبي</td><td>Prop</td><td>Project</td><td>Majd Soft 3D</td><td>v002</td></tr><tr><td>شخصية سامي</td><td>Character</td><td>Project</td><td>Majd Soft 3D</td><td>v001</td></tr></tbody></table></div></div><div class="panel"><h3>سجل الإصدارات</h3><div class="card"><strong>كرسي خشبي · v002</strong><p>آخر إصدار معتمد، محفوظ مع إعدادات التوليد ونتائج QA.</p></div><div class="card"><strong>كرسي خشبي · v001</strong><p>الإصدار السابق محفوظ دون تعديل.</p></div></div></div>
+    </section>
+
+    <footer class="footer">Majd Studio · معاينة محلية · لا تحفظ هذه الشاشة أي تغييرات</footer>
+  </div>
+  <script>
+    const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
+    function selectTab(tab) {
+      tabs.forEach(item => {
+        const selected = item === tab;
+        item.setAttribute('aria-selected', String(selected));
+        item.tabIndex = selected ? 0 : -1;
+        document.getElementById(item.getAttribute('aria-controls')).hidden = !selected;
+      });
+      tab.focus();
+    }
+    tabs.forEach((tab, index) => {
+      tab.addEventListener('click', () => selectTab(tab));
+      tab.addEventListener('keydown', event => {
+        let next = index;
+        if (event.key === 'ArrowRight') next = (index - 1 + tabs.length) % tabs.length;
+        else if (event.key === 'ArrowLeft') next = (index + 1) % tabs.length;
+        else if (event.key === 'Home') next = 0;
+        else if (event.key === 'End') next = tabs.length - 1;
+        else return;
+        event.preventDefault();
+        selectTab(tabs[next]);
+      });
+    });
+    document.querySelectorAll('.image-slot input').forEach(input => {
+      let objectUrl;
+      input.addEventListener('change', () => {
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        const slot = input.closest('.image-slot');
+        slot.querySelector('img')?.remove();
+        const file = input.files?.[0];
+        if (!file || !file.type.startsWith('image/')) return;
+        objectUrl = URL.createObjectURL(file);
+        const image = document.createElement('img');
+        image.src = objectUrl;
+        image.alt = `معاينة ${input.getAttribute('aria-label')}`;
+        slot.prepend(image);
+        slot.querySelector('span').textContent = file.name;
+      });
+      window.addEventListener('pagehide', () => { if (objectUrl) URL.revokeObjectURL(objectUrl); });
+    });
+  </script>
+</body>
+</html>

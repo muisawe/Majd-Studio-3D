@@ -1,0 +1,153 @@
+{
+  "name": "Majd Studio 3D V9 Phase 2 Windows with GitHub Updates",
+  "version": "9.0.0-beta.5",
+  "generated": "2026-10-03",
+  "main_ui_port": 7864,
+  "viewer_port": 7865,
+  "features": [
+    "projects",
+    "style_profiles",
+    "style_references",
+    "style_lock_v2",
+    "asset_versioning",
+    "project_global_library",
+    "project_variants",
+    "input_preflight",
+    "pre_generation_gate",
+    "multi_view_calibration",
+    "calibrated_hunyuan_inputs",
+    "post_generation_conformance",
+    "experimental_geometry_style_score",
+    "hunyuan_2_1",
+    "hunyuan_2mv",
+    "threejs_review",
+    "github_release_updates",
+    "model_download_progress",
+    "resumable_model_downloads",
+    "p3sam_segmentation",
+    "xpart_reconstruction",
+    "part_library_approval"
+  ],
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 10338,
+      "sha256": "262e4728003751cd6055662d02993594c811adeb3d9fab80e219590076da8083"
+    },
+    {
+      "path": "install.cmd",
+      "bytes": 191,
+      "sha256": "3b40ecfcc7640d53f600f1a1d44955ebcbd1406d17b1c58a5cd81a6e80976ab6"
+    },
+    {
+      "path": "install_v9.ps1",
+      "bytes": 58,
+      "sha256": "9a94fe01e16f72bdda840cb6b0bdb45df03687a18feeb26f9918052ebfa4a54a"
+    },
+    {
+      "path": "launch_majd_studio_3d_v9.ps1",
+      "bytes": 57,
+      "sha256": "0570bf916d071310cdfd135c31220212a78cf084e92f60842f74a07fbff7e4a6"
+    },
+    {
+      "path": "majd_studio_3d/__init__.py",
+      "bytes": 53,
+      "sha256": "0db1ff156a5c1023a59774d996980e7e935f33a7dcf6b09b5464684f8badc9f9"
+    },
+    {
+      "path": "majd_studio_3d/app.py",
+      "bytes": 89992,
+      "sha256": "331883190d149be0e9977b802511798dd7d40c46b9311097e595a4682cb3d8ec"
+    },
+    {
+      "path": "majd_studio_3d/input_qa.py",
+      "bytes": 12817,
+      "sha256": "bdd034e3d84528c53ad8aa757a12b2ab5d50ccb254773811a4de6ce3b02aa587"
+    },
+    {
+      "path": "majd_studio_3d/model_manager.py",
+      "bytes": 15026,
+      "sha256": "dbde284181abfea887a619300bba456553084bef1b2acc10064da939fb015c06"
+    },
+    {
+      "path": "majd_studio_3d/parts.py",
+      "bytes": 10476,
+      "sha256": "1037d5ce21681932b5b61f55b194985ed0a7f3903ff2214074c69dc155ed2957"
+    },
+    {
+      "path": "majd_studio_3d/parts_worker.py",
+      "bytes": 7807,
+      "sha256": "e13357acba54e36e93b5a97772d8c6b38d3d186171ee157e2259943cab30bb46"
+    },
+    {
+      "path": "majd_studio_3d/store.py",
+      "bytes": 46230,
+      "sha256": "2ad47fcfaee05f9ae95c9fb6a06e399683438ed69411a3c6fc8fa4d855ff3345"
+    },
+    {
+      "path": "majd_studio_3d/updater.py",
+      "bytes": 18144,
+      "sha256": "336e73fb9c651cb1355d07caed97b7aa7666540d62a6c12329d91b243e90d7dd"
+    },
+    {
+      "path": "majd_studio_3d/verified_model_metadata.py",
+      "bytes": 4808,
+      "sha256": "997cb4ef88e72485836f74503776f1acf8849bd0ec7bfc8cf0e705da9107ff3a"
+    },
+    {
+      "path": "majd_studio_3d_v9.py",
+      "bytes": 137,
+      "sha256": "b22bdaa79b3031508fcb085376e97267c55c727d5e7a06172594b69d50a5bd04"
+    },
+    {
+      "path": "previews/mac_ui.css",
+      "bytes": 9484,
+      "sha256": "aa0ed9da000f6f301f9ed79b6c5821bb42ab88f2db7e8916a0f85e4981fbcc85"
+    },
+    {
+      "path": "previews/mac_ui.html",
+      "bytes": 16822,
+      "sha256": "f74d074168e9d11bdd32c83a25a9f292e7e314115136ccb912f71b80f4963d67"
+    },
+    {
+      "path": "roadmap.md",
+      "bytes": 21765,
+      "sha256": "fc1b18429a3f412197f5edf91a91099842f9ac63f93df32a01619906ed687a31"
+    },
+    {
+      "path": "scripts/install_windows.ps1",
+      "bytes": 9418,
+      "sha256": "f86c3d031fcfdcc2199255d730ee1a839301ab8f93d561fdf6beaf8f11784e06"
+    },
+    {
+      "path": "scripts/launch_windows.ps1",
+      "bytes": 4294,
+      "sha256": "1056ac699ef5dfbbba56fc66a9ba500ab5e46260273660b5e2a7cfab9f892aea"
+    },
+    {
+      "path": "update_config.json",
+      "bytes": 58,
+      "sha256": "5b3221abf98d81b2615f8cc3bf8dd42b1ee47986271910e72397cc513c65b2ed"
+    },
+    {
+      "path": "version.json",
+      "bytes": 32,
+      "sha256": "db3810282cbc3da733769e0e48b84324f16e0914088e59e7158f304aae56e60d"
+    },
+    {
+      "path": "viewer/viewer.css",
+      "bytes": 4667,
+      "sha256": "e136633e6f88d547656774084fdd233c565ae46fe63bd6d14ec28470a41dbe33"
+    },
+    {
+      "path": "viewer/viewer.html",
+      "bytes": 3054,
+      "sha256": "4d5b802ebca1b0806a85308ae3a7f128f8252be17bdd85eacb16f70c0c3d110d"
+    },
+    {
+      "path": "viewer/viewer.js",
+      "bytes": 8543,
+      "sha256": "e1dfcc7302e833a9993a82c5396b4ac3501bf5d9856ae9669b0dd49adcc82ac0"
+    }
+  ]
+}
