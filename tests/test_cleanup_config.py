@@ -2,7 +2,6 @@ import contextlib
 import io
 import json
 import os
-import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -11,6 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from majd_studio_3d.cleanup import CleanupService, main
+from tests.sqlite_helpers import connect
 from majd_studio_3d.cleanup_config import (
     DEFAULT_CLEANUP_CONFIG,
     CleanupConfigWarning,
@@ -106,7 +106,7 @@ class CleanupConfigTests(unittest.TestCase):
         self.assertEqual(result["status"], "failed")
         self.assertTrue(result["raw_fallback"])
         self.assertEqual(Path(result["glb_path"]), source.resolve())
-        with sqlite3.connect(self.root / "app" / "majd_v9.sqlite3") as conn:
+        with connect(self.root / "app" / "majd_v9.sqlite3") as conn:
             row = conn.execute("SELECT status,config_snapshot_json,artifact_paths_json FROM cleanup_runs WHERE id=?",
                                (result["job_id"],)).fetchone()
         self.assertEqual(row[0], "failed")

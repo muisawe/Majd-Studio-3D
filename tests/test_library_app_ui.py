@@ -28,7 +28,7 @@ class LibraryAppUITests(unittest.TestCase):
         message, accordion = self.namespace['library_view_version_action'](self.library_asset, self.library_version)
         self.assertIn('Chair · v001', message)
         self.assertTrue(accordion['open'])
-        payload = json.loads(self.namespace['VIEWER_STATE'].read_text())
+        payload = json.loads(self.namespace['VIEWER_STATE'].read_text(encoding="utf-8"))
         self.assertEqual(payload['assetName'], 'Chair')
         self.assertEqual(payload['models'][0]['label'], 'Chair · v001')
         self.assertEqual(self.store.get_library_asset(self.library_asset)['current_version_id'], previous)

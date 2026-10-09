@@ -75,7 +75,7 @@ class LibraryIntegrityTests(unittest.TestCase):
         view = self.library.view(asset_id)
         Path(view["version"]["artifacts"]["glb_path"]).write_bytes(b"changed after publication")
         source = Path(__file__).resolve().parents[1] / "majd_studio_3d" / "app.py"
-        tree = ast.parse(source.read_text())
+        tree = ast.parse(source.read_text(encoding="utf-8"))
         function = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
                         and node.name == "library_view_version_action")
         publisher = Mock()

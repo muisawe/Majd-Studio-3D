@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from majd_studio_3d.updater import REQUIRED_PACKAGE_FILES, UPDATE_MANIFEST_FILE, PACKAGE_NAME, apply_package, check_and_apply, confirm, discover_package_files, extract_package, latest_release, package_destination, parse_update_manifest, read_version, rollback, version_key
+from tests.sqlite_helpers import connect
 
 
 class VersionTests(unittest.TestCase):
@@ -63,21 +64,20 @@ class PackageTests(unittest.TestCase):
         self.create_tree(extracted, "9.0.1-beta.1", source_layout=True)
         database = installed / "majd_v9" / "majd_v9.sqlite3"
         database.parent.mkdir(parents=True)
-        import sqlite3
-        with sqlite3.connect(database) as connection:
+        with connect(database) as connection:
             connection.execute("CREATE TABLE marker(value TEXT)")
             connection.execute("INSERT INTO marker VALUES('original')")
         apply_package(extracted, "9.0.1-beta.1", installed)
         self.assertEqual(read_version(installed), "9.0.1-beta.1")
-        with sqlite3.connect(database) as connection:
+        with connect(database) as connection:
             connection.execute("UPDATE marker SET value='changed'")
         self.assertTrue(rollback(installed))
         self.assertEqual(read_version(installed), "9.0.0-beta.1")
-        with sqlite3.connect(database) as connection:
+        with connect(database) as connection:
             self.assertEqual(connection.execute("SELECT value FROM marker").fetchone()[0], "changed")
         backups = list((installed / "majd_v9" / "updates").glob("backup-*/majd_v9.sqlite3"))
         self.assertEqual(len(backups), 1)
-        with sqlite3.connect(backups[0]) as connection:
+        with connect(backups[0]) as connection:
             self.assertEqual(connection.execute("SELECT value FROM marker").fetchone()[0], "original")
         self.assertEqual(json.loads((installed / "majd_v9" / "updates" / "failed_version.json").read_text())["version"], "9.0.1-beta.1")
         self.assertFalse((installed / "majd_v9" / "updates" / "pending.json").exists())

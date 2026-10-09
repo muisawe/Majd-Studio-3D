@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from majd_studio_3d.library_store import initialize_library_schema
+from tests.sqlite_helpers import connect
 from majd_studio_3d.store import V9Store
 
 
@@ -194,7 +195,7 @@ class LibraryStoreTests(unittest.TestCase):
             conn.executescript('DROP TABLE library_events; DROP TABLE library_asset_versions; DROP TABLE library_assets;')
             conn.execute("UPDATE meta SET value='97' WHERE key='schema_version'")
         copy = self.root / 'copy.sqlite3'
-        with sqlite3.connect(self.store.db_path) as source, sqlite3.connect(copy) as target:
+        with connect(self.store.db_path) as source, connect(copy) as target:
             source.backup(target)
         migrated = LibraryFixtureStore(copy, self.root / 'projects', self.root / 'copies')
         migrated.init_schema()

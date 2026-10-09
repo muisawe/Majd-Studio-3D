@@ -1,6 +1,5 @@
 """Review decisions never turn ranking into approval or alter candidate history."""
 import json
-import sqlite3
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -8,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from majd_studio_3d.review_store import initialize_review_schema
+from tests.sqlite_helpers import connect
 from majd_studio_3d.store import V9Store
 
 
@@ -161,7 +161,7 @@ class ReviewStoreTests(unittest.TestCase):
             conn.execute('DROP TABLE IF EXISTS review_assets')
             conn.execute("UPDATE meta SET value='96' WHERE key='schema_version'")
         copy = self.root / 'legacy-copy.sqlite3'
-        with sqlite3.connect(legacy.db_path) as source, sqlite3.connect(copy) as destination:
+        with connect(legacy.db_path) as source, connect(copy) as destination:
             source.backup(destination)
         migrated = ReviewFixtureStore(copy, self.root / 'copy_projects', self.root / 'copy_library')
         migrated.init_schema()

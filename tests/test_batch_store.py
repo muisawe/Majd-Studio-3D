@@ -2,13 +2,13 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from majd_studio_3d.store import SCHEMA_VERSION, V9Store
+from tests.sqlite_helpers import connect
 
 
 class BatchStoreTests(unittest.TestCase):
@@ -173,7 +173,7 @@ class BatchStoreTests(unittest.TestCase):
             conn.execute('DROP TABLE processing_batches')
             conn.execute("UPDATE meta SET value='95' WHERE key='schema_version'")
         copied = self.root / 'copy.sqlite3'
-        with sqlite3.connect(self.store.db_path) as source_db, sqlite3.connect(copied) as target:
+        with connect(self.store.db_path) as source_db, connect(copied) as target:
             source_db.backup(target)
         for _ in range(2):
             migrated = V9Store(copied, self.root / 'projects', self.root / 'library')

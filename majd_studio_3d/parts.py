@@ -32,8 +32,9 @@ def run_process(command, cwd: Path, log: Path, progress=None, cancel=None, timeo
     lines = queue.Queue()
     environment = os.environ.copy()
     environment["PYTHONUNBUFFERED"] = "1"
+    environment["PYTHONIOENCODING"] = "utf-8"
     process = subprocess.Popen(command, cwd=cwd, env=environment, stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT, text=True, errors="replace",
+        stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
         creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
     def read_lines():
         try:

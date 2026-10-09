@@ -31,7 +31,7 @@ def build_studio_ui(fixture):
     """Execute existing definitions and Blocks declaration, excluding app startup."""
     import gradio as gr
     root = Path(__file__).resolve().parents[1]
-    source = ast.parse((root / "majd_studio_3d" / "app.py").read_text())
+    source = ast.parse((root / "majd_studio_3d" / "app.py").read_text(encoding="utf-8"))
     store = fixture.service.store
     candidate = {"candidate": 1, "score": .9, "faces": 1000, "vertices": 3,
                  "seed": 1234, "resolution": 128, "glb": str(fixture.source)}
@@ -106,12 +106,12 @@ class StudioProcessingUITests(unittest.TestCase):
         self.assertIn("Faces: 300", info)
         self.assertEqual(selection["value"], "0")
         self.assertEqual(namespace["processing_preview"](self.fixture.asset, "0", "raw"), "عرض الأصل الخام المحفوظ.")
-        payload = json.loads(namespace["VIEWER_STATE"].read_text())
+        payload = json.loads(namespace["VIEWER_STATE"].read_text(encoding="utf-8"))
         self.assertIn("Raw", payload["models"][0]["label"])
         self.assertEqual(payload["models"][0]["faces"], 1000)
         self.assertIsNone(payload["models"][0]["vertices"])
         namespace["processing_preview"](self.fixture.asset, "0", "processed")
-        payload = json.loads(namespace["VIEWER_STATE"].read_text())
+        payload = json.loads(namespace["VIEWER_STATE"].read_text(encoding="utf-8"))
         self.assertIn("Processed", payload["models"][0]["label"])
         self.assertEqual(payload["models"][0]["faces"], 300)
 

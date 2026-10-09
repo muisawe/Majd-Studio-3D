@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
 
 from majd_studio_3d.store import SCHEMA_VERSION, V9Store
+from tests.sqlite_helpers import connect
 
 
 class CleanupStoreTests(unittest.TestCase):
@@ -45,7 +45,7 @@ class CleanupStoreTests(unittest.TestCase):
             conn.execute("DROP TABLE cleanup_runs")
             conn.execute("UPDATE meta SET value='93' WHERE key='schema_version'")
         copy = self.root / "existing-copy.sqlite3"
-        with sqlite3.connect(self.store.db_path) as original, sqlite3.connect(copy) as destination:
+        with connect(self.store.db_path) as original, connect(copy) as destination:
             original.backup(destination)
         for _ in range(2):
             migrated = V9Store(copy, self.root / "projects", self.root / "library")

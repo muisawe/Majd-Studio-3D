@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
 
 from majd_studio_3d.store import SCHEMA_VERSION, V9Store
+from tests.sqlite_helpers import connect
 
 
 class ProcessingStoreTests(unittest.TestCase):
@@ -63,7 +63,7 @@ class ProcessingStoreTests(unittest.TestCase):
             conn.execute("DROP TABLE processing_runs")
             conn.execute("UPDATE meta SET value='94' WHERE key='schema_version'")
         copied = self.root / "copied.sqlite3"
-        with sqlite3.connect(self.store.db_path) as source, sqlite3.connect(copied) as target:
+        with connect(self.store.db_path) as source, connect(copied) as target:
             source.backup(target)
         for _ in range(2):
             migrated = V9Store(copied, self.root / "projects", self.root / "library")
