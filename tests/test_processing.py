@@ -30,7 +30,8 @@ class ProcessingTests(unittest.TestCase):
         self.asset = self.service.store.create_asset({"project_id": self.project, "name": "Test", "asset_type": "Prop"})
         save_cleanup_config({"auto_cleanup": True}, self.service.app_dir)
         self.addCleanup(patch.stopall)
-        patch.dict(os.environ, {}, clear=True).start()
+        patch.dict(os.environ, {key: os.environ[key] for key in ("HOME", "USERPROFILE", "SYSTEMROOT")
+                                 if key in os.environ}, clear=True).start()
         patch("majd_studio_3d.processing.resolve_blender", return_value=None).start()
         self.inspector = patch.object(self.service, "_inspect", side_effect=self.inspect).start()
         self.reduce_impl = self.service._reduce
