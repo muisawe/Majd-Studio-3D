@@ -32,6 +32,8 @@ class StreamToLogger:
     """File-like replacement for stdout/stderr that forwards complete lines to a logger."""
 
     encoding = "utf-8"
+    errors = "replace"
+    closed = False
 
     def __init__(self, logger: logging.Logger, level: int):
         self.logger = logger
@@ -61,7 +63,20 @@ class StreamToLogger:
         if line.strip():
             self.write(line + "\n")
 
+    def writelines(self, lines) -> None:
+        for line in lines:
+            self.write(line)
+
     def isatty(self) -> bool:
+        return False
+
+    def writable(self) -> bool:
+        return True
+
+    def readable(self) -> bool:
+        return False
+
+    def seekable(self) -> bool:
         return False
 
     def fileno(self) -> int:

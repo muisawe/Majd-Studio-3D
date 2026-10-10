@@ -16,12 +16,14 @@ class StreamToLoggerTests(unittest.TestCase):
         with self.assertLogs(logger, logging.INFO) as captured:
             stream.write("first part ")
             stream.write("done\nprogress 10%\rprogress 20%\r")
-            stream.write("tail without newline")
+            stream.writelines(["tail ", "without newline"])
             stream.flush()
         self.assertEqual([record.getMessage() for record in captured.records],
                          ["first part done", "progress 10%", "progress 20%", "tail without newline"])
         with self.assertRaises(OSError):
             stream.fileno()
+        self.assertTrue(stream.writable())
+        self.assertFalse(stream.closed or stream.isatty() or stream.readable() or stream.seekable())
 
 
 class ConfigureLoggingTests(unittest.TestCase):
