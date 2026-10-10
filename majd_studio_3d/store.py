@@ -29,7 +29,7 @@ from .review_store import ReviewStoreMixin, initialize_review_schema
 from .landmark_store import LandmarkStoreMixin, initialize_landmark_schema
 from .library_store import LibraryStoreMixin, initialize_library_schema
 
-SCHEMA_VERSION = 99
+SCHEMA_VERSION = 100
 
 
 def utcnow() -> str:
@@ -346,7 +346,7 @@ class V9Store(ReviewStoreMixin, LibraryStoreMixin, LandmarkStoreMixin):
 
             initialize_review_schema(conn)
             initialize_library_schema(conn)
-            initialize_landmark_schema(conn)
+            initialize_landmark_schema(conn)  # Schema 100: landmark_sets.
             ensure_column("processing_batch_items", "review_candidate_id", "TEXT")
             conn.execute(
                 "INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version',?)",

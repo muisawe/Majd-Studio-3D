@@ -67,6 +67,20 @@ class LandmarkStoreTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.store.save_landmarks("missing", "front", marks(1, 2))
 
+    def test_schema99_database_gains_landmark_table(self):
+        import sqlite3
+        from contextlib import closing
+        from majd_studio_3d.store import SCHEMA_VERSION
+        with closing(sqlite3.connect(self.store.db_path)) as conn:
+            conn.execute("DROP TABLE landmark_sets")
+            conn.execute("UPDATE meta SET value='99' WHERE key='schema_version'")
+            conn.commit()
+        store = V9Store(self.store.db_path, self.store.projects_root, self.store.library_root)
+        store.save_landmarks(self.asset, "front", marks(10, 90))
+        with closing(sqlite3.connect(store.db_path)) as conn:
+            version = conn.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0]
+        self.assertEqual((int(version), SCHEMA_VERSION), (100, 100))
+
 
 @unittest.skipUnless(HAVE_IMAGES, "Calibration needs numpy and Pillow")
 class LandmarkCalibrationTests(unittest.TestCase):
