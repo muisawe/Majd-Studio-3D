@@ -25,6 +25,9 @@ class CleanupConfigTests(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
+        # Windows subprocesses need these to start (Python 3.10 random numbers need SYSTEMROOT).
+        self.system_environment = {key: os.environ[key] for key in ("SYSTEMROOT", "SYSTEMDRIVE", "WINDIR", "TEMP", "TMP")
+                                   if key in os.environ}
         self.environment = patch.dict(os.environ, {}, clear=True)
         self.environment.start()
         self.addCleanup(self.environment.stop)
@@ -98,10 +101,11 @@ class CleanupConfigTests(unittest.TestCase):
         source.write_bytes(b"original")
         command = [sys.executable, "-m", "majd_studio_3d.cleanup", str(source), str(self.root / "results"),
                    "--app-dir", str(self.root / "app")]
-        environment = {**os.environ, "BLENDER_PATH": str(self.root / "missing-Blender")}
+        environment = {**self.system_environment, **os.environ, "BLENDER_PATH": str(self.root / "missing-Blender")}
         process = subprocess.run(command, capture_output=True, text=True, timeout=15, env=environment,
                                  cwd=Path(__file__).resolve().parents[1], check=False)
         self.assertEqual(process.returncode, 1, process.stderr)
+        self.assertTrue(process.stdout.strip(), process.stderr)
         result = json.loads(process.stdout)
         self.assertEqual(result["status"], "failed")
         self.assertTrue(result["raw_fallback"])
