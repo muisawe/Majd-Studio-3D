@@ -40,8 +40,8 @@ function Stop-ProcessTree([System.Diagnostics.Process]$process) {
     foreach ($id in $ids) { Stop-Process -Id $id -Force -ErrorAction SilentlyContinue }
 }
 
-function Wait-For-Studio([System.Diagnostics.Process]$process) {
-    for ($i = 0; $i -lt 300; $i++) {
+function Wait-For-Studio([System.Diagnostics.Process]$process, [int]$timeoutSeconds = 300) {
+    for ($i = 0; $i -lt $timeoutSeconds; $i++) {
         Start-Sleep -Seconds 1
         if ($process.HasExited) { return $false }
         try {

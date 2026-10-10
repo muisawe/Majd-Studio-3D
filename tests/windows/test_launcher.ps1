@@ -12,11 +12,24 @@ if ($LASTEXITCODE -ne 0) { throw "venv creation failed" }
 $server = Start-Process -FilePath $pythonw -ArgumentList "-m http.server 7864 --bind 127.0.0.1" `
     -WorkingDirectory $root -WindowStyle Hidden -PassThru
 try {
-    if (-not (Wait-For-Studio $server)) { throw "Wait-For-Studio did not recognise the running studio" }
+    Start-Sleep -Seconds 5
+    Write-Host "Launcher process $($server.Id) exited: $($server.HasExited)"
+    Write-Host "Process tree: $(@(Get-ProcessTreeIds $server.Id) -join ', ')"
+    Get-CimInstance Win32_Process -Filter "ParentProcessId=$($server.Id)" |
+        ForEach-Object { Write-Host "Child $($_.ProcessId): $($_.CommandLine)" }
+    Get-NetTCPConnection -LocalPort 7864 -ErrorAction SilentlyContinue |
+        ForEach-Object { Write-Host "Port 7864 $($_.State) owned by $($_.OwningProcess) ($($_.LocalAddress))" }
+    try {
+        $probe = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 5
+        Write-Host "HTTP $($probe.StatusCode)"
+    } catch { Write-Host "HTTP probe failed: $_" }
+
+    if (-not (Wait-For-Studio $server 60)) { throw "Wait-For-Studio did not recognise the running studio" }
     $owner = (Get-NetTCPConnection -LocalPort 7864 -State Listen | Select-Object -First 1).OwningProcess
     Write-Host "Launcher PID $($server.Id); listener PID $owner; redirector child: $($owner -ne $server.Id)"
 } finally {
     Stop-ProcessTree $server
+    if (Test-Path $logPath) { Get-Content $logPath | ForEach-Object { Write-Host "launcher.log: $_" } }
 }
 Start-Sleep -Seconds 2
 if (Get-NetTCPConnection -LocalPort 7864 -State Listen -ErrorAction SilentlyContinue) {
