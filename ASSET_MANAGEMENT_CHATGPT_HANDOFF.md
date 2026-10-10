@@ -9,12 +9,12 @@
 > | Local folder | `Majd_Studio_3D/` |
 > | Source repository | `github.com/muisawe/Majd-Studio-3D` (git `origin`) |
 > | Update/release repository | `muisawe/Majd3D` (`update_config.json`, `scripts/publish_release.py`) |
-> | Branch / HEAD | `main` @ `b9c5e14` "Version 9.0.0-beta.6", tagged `v9.0.0-beta.6`, in sync with `origin/main`, clean working tree |
-> | App version | `9.0.0-beta.6` (`version.json`) |
-> | Database schema version | `99` (`majd_studio_3d/store.py`, `SCHEMA_VERSION`) |
+> | Branch / HEAD | `main` @ `9dd34d3` "Schema 100 for landmark_sets so devices take a pre-migration snapshot", in sync with `origin/main`; no version tags in this repository |
+> | App version | `9.0.0-beta.7` (`version.json`). **Not published yet:** the newest release in `muisawe/Majd3D` is `v9.0.0-beta.5` (`gh release list`) |
+> | Database schema version | `100` (`majd_studio_3d/store.py`, `SCHEMA_VERSION`) |
 > | Analysis date | 2026-10-10 |
 >
-> Two commits landed from outside this analysis while it was running: `feeff14` (reliability work, already read here as uncommitted changes) and `b9c5e14` (version bump plus `MANIFEST.json`). The analysis matches the code at `b9c5e14`.
+> **Revision history.** First written against `b9c5e14`. Updated against `9dd34d3` to cover `c2b185e` (Input QA Phase 2.3), `73d8a6c` (manual landmark calibration, version 9.0.0-beta.7), `cdfe9c3` (file-like captured stdout), `666d5c8` (this report and the `/update-handoff` command) and `9dd34d3` (schema 100). Run `/update-handoff` in Claude Code to refresh it again.
 
 ## How to read this report
 
@@ -25,13 +25,13 @@ Every important claim carries one of these labels:
 - **UNKNOWN**: the repository cannot answer it.
 
 **Scope inspected:**
-- All 41 Python modules in `majd_studio_3d/` (about 9,850 lines).
+- All 44 Python modules in `majd_studio_3d/` (about 10,300 lines).
 - `scripts/` (2 Python files, 2 PowerShell files).
 - `viewer/` (HTML, CSS, JS).
-- All 43 test modules plus the PowerShell launcher test.
+- All 45 test modules plus the PowerShell launcher test.
 - Both GitHub Actions workflows.
 - `README.md`, `roadmap.md`, `docs/asset-library.md`, `MANIFEST.json`, `version.json`, `update_config.json`.
-- The full git history (13 commits).
+- The full git history (18 commits).
 
 **Excluded:**
 - `dist/`: stale beta.5 build artefacts.
@@ -80,7 +80,7 @@ Here an **asset is a 3D model**: a character, prop, environment element, buildin
 End-to-end, it can:
 1. Organise work into **Projects** and **Style Profiles**, the art-direction rules: generation defaults, a face budget and QA thresholds.
 2. **Register assets** from reference images (front, back, left, right, 3/4 and detail) one at a time, or by bulk folder import.
-3. Run **Preflight** image checks and **Calibration** that normalises the views to a common canvas.
+3. Run **Preflight** image checks and **Calibration** that normalises the views to a common canvas, optionally guided by body **landmarks** that the operator marks by clicking on each view.
 4. **Generate** several candidate meshes per asset with Hunyuan3D-2.1 (single view) or Hunyuan3D-2mv (multi-view).
 5. **Score** each candidate by silhouette IoU against the references, plus an experimental "geometry-style" score.
 6. Optionally **post-process** candidates: Hunyuan's native FaceReducer, then headless **Blender 4.x** geometry cleanup, then validation.
@@ -128,11 +128,12 @@ Source: `roadmap.md` §2. **FACT** that they are stated goals; how far each is i
 ### 1.5 Current development stage
 
 - **FACT:**
-  - Version `9.0.0-beta.6`.
+  - Version `9.0.0-beta.7`, built and verified in CI but **not yet published** to devices; the last published release is `v9.0.0-beta.5`.
   - The docs call it **"V9 Phase 2.1 Beta"**.
   - The README documents recently added sub-phases **C to G**: processing service, processing UI, batch processing and cleanup, human review, Asset Library.
-  - The latest commit `feeff14` adds roadmap "Phase 8 Reliability" items: logging, atomic writes, crash recovery, generation resume, DB backups and an integrity scan.
-- **FACT:** git history covers only 2026-10-09 to 2026-10-10 (13 commits). The first commit, *"Initial commit: Majd Studio 3D V9 beta.5"*, imported an existing codebase wholesale.
+  - Commit `feeff14` adds roadmap "Phase 8 Reliability" items: logging, atomic writes, crash recovery, generation resume, DB backups and an integrity scan.
+  - Commits `c2b185e` and `73d8a6c` then implement most of roadmap Phase 2.3 (advanced preflight) and the manual half of Phase 2.2 (landmark calibration).
+- **FACT:** git history covers only 2026-10-09 to 2026-10-10 (18 commits). The first commit, *"Initial commit: Majd Studio 3D V9 beta.5"*, imported an existing codebase wholesale.
 - **UNKNOWN:** the history of V8 and of earlier V9 phases is not in git.
 - **FACT:** the docs say plainly that **real GPU inference, Blender execution and the full Windows install/update cycle have not been verified** in the development environment (`README.md` §"Verification limits", and `roadmap.md` §9: *"No feature is Production-Ready before it is actually tested on the production machine"*).
 
@@ -159,7 +160,7 @@ Source: `roadmap.md` §2. **FACT** that they are stated goals; how far each is i
 | 3D viewer | **Three.js** ES modules with OrbitControls and GLTFLoader; vanilla JS polls `data/state.json` every 900 ms | **0.180.0**, downloaded from jsDelivr at install (FACT) | `install_windows.ps1:77`, `viewer/viewer.js` |
 | Viewer server | stdlib `ThreadingHTTPServer` on `127.0.0.1:7865` | (FACT) | `viewer_publisher.py:52` |
 | Backend architecture | One in-process Python monolith: Gradio callbacks, then controllers, services and the store. No REST framework | (FACT) | `app.py` |
-| Database | **SQLite** via stdlib `sqlite3`; WAL journal; `PRAGMA foreign_keys=ON`; no ORM; raw SQL | schema 99 (FACT) | `store.py:66-71` |
+| Database | **SQLite** via stdlib `sqlite3`; WAL journal; `PRAGMA foreign_keys=ON`; no ORM; raw SQL | schema 100 (FACT) | `store.py:66-71` |
 | ML runtime | PyTorch with CUDA, reused from the Hunyuan venv | **UNKNOWN**: not pinned here. The parts runtime requires CUDA 12.x (`parts.py:126`) | `generation.py` |
 | Shape generation | Hunyuan3D-2.1 (`hy3dshape`), Hunyuan3D-2mv (`hy3dgen`) | Weights from HF `tencent/Hunyuan3D-2.1` and `tencent/Hunyuan3D-2mv` at revision `main`; offline fallback manifests pinned to commits (FACT) | `model_manager.py` `MODEL_SPECS`, `verified_model_metadata.py` |
 | Part segmentation | P3-SAM, XPart (`tencent/Hunyuan3D-Part`), Sonata backbone (`facebook/sonata`) | Code pinned to space revision `27cacbd…`, run in a separate venv (FACT) | `model_manager.py:22`, `parts.py` |
@@ -169,9 +170,9 @@ Source: `roadmap.md` §2. **FACT** that they are stated goals; how far each is i
 | External integrations | Hugging Face (weights and API metadata), GitHub REST API and Releases (updates), `data.pyg.org` (PyG wheels for the parts venv), jsDelivr (Three.js), `git clone` of `Tencent-Hunyuan/Hunyuan3D-2`, `winget` (Git install) | (FACT) | `model_manager.py`, `updater.py`, `parts.py`, `install_windows.ps1` |
 | Background work | Python threads: the processing-batch executor and the startup integrity scan. Subprocess workers: Blender, FaceReducer, the parts venv. The Gradio queue (`concurrency_id="gpu_operation"`, limit 1). **No external queue or broker** | (FACT) | `batch_processing.py`, `library_controller.py`, `parts.py:run_process` |
 | Notifications | **None.** The UI polls through `gr.Timer(2)` in the processing and batch panels | (FACT) | `processing_gradio.py:27`, `batch_gradio.py:35` |
-| Storage | Local filesystem under `<install>/majd_v9/` (layout in §5.7) | (FACT) | `app.py:72-81` |
+| Storage | Local filesystem under `<install>/majd_v9/` (layout in §5.7) | (FACT) | `app.py:73-82` |
 | Logging | stdlib `logging`: `v9.log` rotating 10 MB × 5, plus `faults.log` (faulthandler), batch JSONL logs, processing JSON logs, `launcher.log` | (FACT) | `logging_setup.py`, `batch_processing.py:log` |
-| Testing | stdlib `unittest` with `unittest.mock`; real-Blender suites skip themselves when Blender is absent | About 350 test methods in 43 modules (FACT) | `tests/` |
+| Testing | stdlib `unittest` with `unittest.mock`; real-Blender suites skip themselves when Blender is absent | About 365 test methods in 45 modules (FACT) | `tests/` |
 | CI/CD | GitHub Actions on `windows-latest`: compile, unit tests, PowerShell parse, launcher health test, package build. The release workflow publishes through the `gh` CLI | `actions/*@v7` (FACT) | `.github/workflows/ci.yml`, `release.yml` |
 | Packaging/deploy | `install.cmd` calls the PowerShell installer, which creates a desktop shortcut to the launcher. Two ZIPs: a **bootstrap** (full) and an **update** (app code and viewer only) | (FACT) | `scripts/build_release.py`, `scripts/*.ps1` |
 
@@ -184,12 +185,13 @@ Source: `roadmap.md` §2. **FACT** that they are stated goals; how far each is i
 | Path | Responsibility |
 |---|---|
 | `majd_studio_3d_v9.py` | Compatibility entry point. Importing `majd_studio_3d.app` **starts the whole application** |
-| `majd_studio_3d/app.py` (1,236 lines) | **Composition root, legacy UI and its handlers.** Paths, DB backup, instance lock, store, recovery, controllers, viewer server, GPU and Blender detection, presets, every legacy tab, `gr.Blocks` layout, event bindings, `app.launch()`. All of it runs **at import time** |
-| `store.py` (1,733 lines) | `V9Store`, the data layer. Schema creation and migration; projects, styles, assets, legacy versions, style references, preflight, Style Lock, variants, cleanup and processing runs, processing batches and items, parts. Mixes in review and library behaviour |
+| `majd_studio_3d/app.py` (1,240 lines) | **Composition root, legacy UI and its handlers.** Paths, DB backup, instance lock, store, recovery, controllers, viewer server, GPU and Blender detection, presets, every legacy tab, `gr.Blocks` layout, event bindings, `app.launch()`. All of it runs **at import time** |
+| `store.py` (1,735 lines) | `V9Store`, the data layer. Schema creation and migration; projects, styles, assets, legacy versions, style references, preflight, Style Lock, variants, cleanup and processing runs, processing batches and items, parts. Mixes in review, library and landmark behaviour |
 | `review_store.py` | `ReviewStoreMixin`: review schema, candidate freezing, selection, approval, rejection, retry (Phase F) |
 | `library_store.py` | `LibraryStoreMixin`: library schema and triggers, publication, current version, metadata, archive, counters, integrity scan (Phase G) |
 | `asset_intake.py` | `AssetIntake`: create an asset and import a folder; engine auto-selection |
-| `input_qa.py` | Preflight analysis, silhouette-based calibration, the experimental geometry-style score (numpy/Pillow) |
+| `input_qa.py` | Preflight analysis (per-image and multi-view checks), silhouette- or landmark-based calibration, the experimental geometry-style score (numpy/Pillow) |
+| `landmarks.py`, `landmark_store.py`, `landmark_gradio.py` | Character landmarks: normalisation, cross-view consistency, proportions and guide drawing; `LandmarkStoreMixin` (`landmark_sets`); the click-to-mark panel in the Production tab (roadmap Phase 2.2a, commit `73d8a6c`) |
 | `generation.py` | `GenerationEngine`: model loading, candidate generation, retries, resume markers, failure classification, generation batch loop |
 | `candidate_qa.py` | Silhouette IoU scoring of a mesh against reference masks |
 | `processing.py` | `ProcessingService`: canonical raw resolution, reuse cache, FaceReducer then Blender cleanup then validation pipeline, provenance recording. CLI included |
@@ -199,7 +201,7 @@ Source: `roadmap.md` §2. **FACT** that they are stated goals; how far each is i
 | `batch_processing.py`, `batch_controller.py` | `BatchExecutor` (serial, leased, cancellable) and the batch read model and commands |
 | `review_service.py`, `review_controller.py` | Human-review commands (select, approve, reject, retry, bulk approve) and read models |
 | `library_service.py`, `library_controller.py` | Library commands and read models; background integrity scan |
-| `*_gradio.py` | Thin Gradio bindings for the processing, batch, review and library panels |
+| `*_gradio.py` | Thin Gradio bindings for the processing, batch, review, library and landmark panels |
 | `*_ui.py` | Pure, **HTML-escaped** renderers for those panels |
 | `blender_finalize.py` | Windows-only Blender discovery; generated Blender script that scales, grounds, smooths, renders a thumbnail and saves a `.blend` |
 | `viewer_publisher.py` | Copies models and references into the viewer `data/` folder, writes `state.json` atomically, serves the viewer |
@@ -212,6 +214,7 @@ Source: `roadmap.md` §2. **FACT** that they are stated goals; how far each is i
 | `scripts/` | `install_windows.ps1`, `launch_windows.ps1`, `build_release.py`, `publish_release.py` |
 | `tests/` | Unit and integration tests; `tests/windows/test_launcher.ps1` |
 | `docs/asset-library.md` | Phase G architecture note: the only design document besides the README and roadmap |
+| `.claude/commands/update-handoff.md` | The Claude Code command `/update-handoff`, which refreshes this report against the latest commits |
 | `previews/mac_ui.html/.css` | Static UI mock-up, not connected to anything (README) |
 
 ### 3.2 Runtime topology
@@ -225,7 +228,7 @@ flowchart LR
     subgraph APP["Python process: majd_studio_3d.app"]
       UI["Gradio Blocks :7864<br/>app.py + *_gradio.py + *_ui.py"] --> C["Controllers<br/>Processing / Batch / Review / Library"]
       C --> S["Services<br/>GenerationEngine, ProcessingService,<br/>ReviewService, LibraryService,<br/>AssetIntake, PartsService, ModelManager"]
-      S --> ST["V9Store<br/>+ ReviewStoreMixin + LibraryStoreMixin"]
+      S --> ST["V9Store<br/>+ ReviewStoreMixin + LibraryStoreMixin<br/>+ LandmarkStoreMixin"]
       BX["BatchExecutor thread"] --> S
       IS["Library integrity scan thread"] --> ST
       VP["ViewerPublisher<br/>HTTP :7865"]
@@ -260,7 +263,7 @@ flowchart LR
   9. `launch()`
   
   There is no `main()`. Tests rebuild parts of the UI by parsing `app.py` with `ast` (`tests/test_processing_app_ui.py`).
-- **Mixins** combine the persistence concerns: `class V9Store(ReviewStoreMixin, LibraryStoreMixin)`.
+- **Mixins** combine the persistence concerns: `class V9Store(ReviewStoreMixin, LibraryStoreMixin, LandmarkStoreMixin)`.
 - **Immutability and provenance first:**
   - frozen configuration snapshots
   - pinned raw inputs
@@ -413,15 +416,32 @@ Each module lists its purpose, rules, operations, entities, roles, dependencies 
 - **Entity:** an `assets` row created in status `pending`.
 - **Status:** implemented and tested (`test_asset_intake`, 5 tests).
 
-### 4.5 Preflight and calibration
-`input_qa.py`: deterministic, with no ML (FACT).
+### 4.5 Preflight, calibration and landmarks
+`input_qa.py` and `landmarks.py`: deterministic, with no ML (FACT). The Phase 2.3 checks arrived in commit `c2b185e` and manual landmarks in `73d8a6c`.
 - **Subject mask:** taken from the alpha channel, or else estimated from the corner colours of the background.
-- **Per-image checks:** resolution, separation, cropping, size, centring.
-- **Multi-view scale consistency:** a view whose subject height differs from the median by more than 22% is a FAIL; by more than 12% it is a WARN.
-- **Calibration:** crops each view and rescales it onto a square canvas (`calibration_canvas`) at `target_occupancy` height, on a fixed baseline. The original images are kept.
+- **Per-image checks** (`analyze_image`):
+  - resolution: FAIL below 256 px, WARN below 512 px
+  - very low contrast (grey standard deviation below 8): WARN
+  - subject cannot be separated from the background: FAIL
+  - blur (variance of the Laplacian of the subject crop scaled to 512 px tall, below 3): WARN
+  - edge clipping: FAIL when the subject touches 2 or more edges, WARN for one
+  - subject too small, framing too tight, and the subject **box** centre more than 15% off horizontally or 20% off vertically: WARN
+- **Detail close-ups** get only the resolution, contrast and blur checks, never FAIL, and are not calibrated, because generation never uses them.
+- **Multi-view checks** (`analyze_multiview`); every issue carries a `view` field:
+  - scale consistency: a view whose subject height differs from the median by more than 22% is a FAIL; by more than 12%, a WARN
+  - duplicates among front, back, left, right and 3/4: the same file is a FAIL; a near-identical picture (64×64 grey mean difference below 1.5) is a WARN
+  - mirror check for front/back and left/right: when an asymmetric silhouette matches its opposite view better unmirrored than mirrored (IoU margin above 0.05), a WARN suggests a flipped or swapped view
+- **Calibration** (`run_preflight`, `shared_target_height`, `calibrate_image`): every generation view is scaled to **one shared subject height**, reduced until the widest view fits 90% of the canvas, with the feet on a baseline at 94% of the canvas. The output PNGs keep the subject mask as alpha over white RGB. The originals are kept.
+- **Landmarks** (`landmarks.py`, `landmark_store.py`, `landmark_gradio.py`):
+  - The operator marks `head_top`, `chin`, `shoulders`, `pelvis`, `knees` and `feet` by clicking on each view in the Production tab. Each save appends a `landmark_sets` row; the newest set per view wins, and an empty set clears the view.
+  - Heights are normalised to the head-to-feet span. A landmark more than 3% (WARN) or 6% (FAIL) of body height away from the median of the other views is reported. A FAIL blocks calibration and can trip the gate.
+  - When `head_top` and `feet` are marked in **every** generation view, calibration scales by the head-to-feet span and puts the feet landmark on the baseline, so hair, hats and props no longer distort the scale. Otherwise it falls back to silhouettes.
+  - The report adds front-view proportions (heads tall, legs and torso ratios). Landmarks are part of the generation resume digest (§4.6).
 - **Gate** (in `generation._generate`): when the style has `preflight_required` and the result is a FAIL or scores below the minimum, `PreflightGateError` sets the asset to `failed` with `failure_kind='preflight_gate'`.
-- **Experimental geometry-style score:** `exp(-2.35·distance)` over the aspect, fill and symmetry of reference silhouettes, weighted by reference weight. It explicitly does **not** detect landmarks (module docstring).
-- **Status:** implemented. **No unit tests for `input_qa`** (FACT). The installer runs one smoke check.
+- **Experimental geometry-style score:** `exp(-2.35·distance)` over the aspect, fill and symmetry of reference silhouettes, weighted by reference weight.
+- **Housekeeping:** `cleanup_preview_dirs` deletes `preflight_preview/` folders older than 7 days at startup.
+- **Not implemented** (FACT): automatic landmark detection (roadmap 2.2b), occlusion and body-completeness checks, automatic view classification.
+- **Status:** implemented and unit-tested on synthetic images (`test_input_qa` 7, `test_landmarks` 9). **The thresholds have not been tuned on real character sheets** (FACT: the tests use drawn shapes only).
 
 ### 4.6 Generation
 `generation.GenerationEngine` (FACT):
@@ -441,7 +461,7 @@ Each module lists its purpose, rules, operations, entities, roles, dependencies 
   - the first attempt uses the configured resolution; the second caps it at 256; the third and later use 128 (an OOM strategy)
 - **Seeds:** Sequential is `base + index + attempt*1000`; Fixed is `base`; Random is `os.urandom`.
 - **Scoring:** `candidate_qa.score_candidate`. It averages a flip-invariant silhouette IoU over the available views: front 0°, back 180°, left 90°, right -90°, 3/4 ±45°. Candidates are sorted by score, and the best becomes `best_glb`.
-- **Resume:** each saved candidate writes `generation.json`, holding the run ID, a settings digest and the GLB's SHA-256 and size. After an interruption, matching candidates are reused (`reusable_candidate`, `generation_digest`).
+- **Resume:** each saved candidate writes `generation.json`, holding the run ID, a settings digest and the GLB's SHA-256 and size. After an interruption, matching candidates are reused (`reusable_candidate`, `generation_digest`). The digest covers the engine and generation settings, the input file signatures, the calibration settings, the style references and the asset's landmarks.
 - **Failure kinds:** `preflight_gate`, `runtime_unavailable`, `oom`, `disk_full`, `download_cancelled`, `interrupted`, `unknown`.
 - **Metrics:** per-candidate seconds, model load time and peak VRAM go into `assets.generation_metrics_json`.
 - The model weights are downloaded automatically if missing (`model_manager.ensure`).
@@ -621,12 +641,13 @@ Also: a disk-space check runs before each file, and `HF_TOKEN` is sent when it i
   6. The launcher confirms the update after a healthy start, or rolls back: it restores the files, **keeps the live DB**, and writes `failed_version.json`.
   7. A rejected package is retried 3 times, then skipped until a newer version appears.
 - **Release pipeline:** bump `version.json`, push (CI builds the packages), then push a tag `v<version>`. `release.yml` reruns CI, builds, creates a draft on `muisawe/Majd3D`, checks GitHub's digest, then publishes. It refuses duplicate or older versions; betas and RCs become prereleases (`scripts/publish_release.py`).
+- **Publication state (FACT):** the newest release in `muisawe/Majd3D` is `v9.0.0-beta.5` (`gh release list`). beta.6 was never published, and beta.7 is built and verified in CI but not published. A manual dry run of `release.yml` passed. The repository has **no Actions secrets** (`gh secret list` is empty), so a tag push cannot publish until `MAJD3D_RELEASE_TOKEN` is added.
 - **Status:** implemented. Tested (`test_updater` 12, `test_publish_release` 8, plus a Windows launcher health test in CI). **The full install/update cycle has not been verified on the production GPU machine** (README).
 
-### 4.16 Reliability layer (latest commit `feeff14`)
-- **Logging:** configured before torch and gradio are imported; stdout and stderr are captured, which matters because the app runs under `pythonw` with no console.
+### 4.16 Reliability layer (commit `feeff14`, plus `cdfe9c3`)
+- **Logging:** configured before torch and gradio are imported; stdout and stderr are captured, which matters because the app runs under `pythonw` with no console. The captured stream behaves like a writable text file (`closed`, `writable`, `writelines`; `cdfe9c3`).
 - **Atomic writes** everywhere JSON is written, and for candidate GLBs.
-- **Instance lock:** `majd_v9/studio.lock`. When another instance holds it, generation recovery is skipped (FACT: `app.py:90-94`).
+- **Instance lock:** `majd_v9/studio.lock`. When another instance holds it, generation recovery is skipped (FACT: `app.py:89-95`).
 - **DB snapshots** (`db_backup.py`): one daily snapshot (14 kept) and one before each migration (5 kept), in `majd_v9/backups/db/`, verified with `quick_check`.
 - **Generation:** resume, failure kinds, a disk guard and per-candidate metrics.
 - **Integrity scan:** the background scan plus its UI counter.
@@ -640,8 +661,8 @@ Also: a disk-space check runs before each file, and `HF_TOKEN` is sent when it i
 - **Environment production:** Phase 6.
 - **Export profiles** for Unity, Unreal, Web and Majd Studio: Phase 7.
 - **Smart planner:** Phase 9.
-- **Landmark calibration:** Phase 2.2.
-- **Advanced preflight**, such as occlusion and wrong-side detection: Phase 2.3.
+- **Automatic landmark detection:** Phase 2.2b. Manual landmarks exist (§4.5).
+- **The rest of advanced preflight:** occlusion, body completeness and automatic view classification (Phase 2.3). Blur, contrast, duplicate and mirrored-view checks exist (§4.5).
 - **Style Conformance V2:** Phase 2.4.
 - **The asset maturity state machine** in roadmap §18 (`DRAFT → … → PUBLISHED`).
 - **The per-version manifest schema** in roadmap §19, which has texture, topology and rig sections. Today's manifests are simpler.
@@ -663,7 +684,7 @@ Also: a disk-space check runs before each file, and `HF_TOKEN` is sent when it i
 
 ## 5. Database and Data Model
 
-### 5.1 Tables (19). All live in one SQLite file: `majd_v9/majd_v9.sqlite3`
+### 5.1 Tables (20). All live in one SQLite file: `majd_v9/majd_v9.sqlite3`
 
 | Table | Purpose | Key fields |
 |---|---|---|
@@ -674,6 +695,7 @@ Also: a disk-space check runs before each file, and `HF_TOKEN` is sent when it i
 | `assets` | **Generation/review work items**, the "processing assets" | `project_id` (FK CASCADE), `style_id` (FK SET NULL), `parent_asset_id` (self-FK SET NULL), `status` (**no CHECK**), `progress`, `engine`, generation settings, `*_path` (6 views), `output_dir`, `candidates_json`, `best_glb`, `current_version`, `is_global`, `style_lock`, preflight columns, schema-99 columns `generation_run_id`, `generation_owner`, `generation_owner_pid`, `failure_kind`, `generation_metrics_json` |
 | `asset_versions` | Approved versions (legacy and Phase F "approved results") | `asset_id` (FK CASCADE), `version_number` with UNIQUE(asset_id, version_number), `approved_candidate`, `score`, `style_lock_result` (PASS, WARN, FAIL→OVERRIDE, VARIANT, PART_APPROVED, OFF), `glb_path`, `blend_path`, `thumbnail_path`, `manifest_path` |
 | `preflight_runs` | Preflight history per asset | `asset_id` (FK CASCADE), `input_signature`, `status`, `score`, `results_json`, `calibrated_json` |
+| `landmark_sets` | Character landmarks per view, append-only history (schema 100) | `asset_id` (FK CASCADE), `view` (front, back, left, right, threeq), `points_json` (`{name: {x, y}}` in input-image pixels), `source` (default `manual`), `confidence`, `created_at`; index on (asset_id, view, created_at) |
 | `part_runs` | P3-SAM/XPart job results | `project_id` (FK), `parent_asset_id` (FK SET NULL), `result_json` |
 | `part_approvals` | Idempotent mapping from part to asset | PK(`run_id`, `part_id`, `project_id`), `asset_id` (FK) |
 | `cleanup_runs` | Immutable Blender cleanup runs | `status` CHECK(success, failed, cancelled), face and island counts, `artifact_paths_json`, `config_snapshot_json`, `result_json` |
@@ -697,6 +719,7 @@ erDiagram
   STYLE_PROFILES ||--o{ STYLE_REFERENCES : "has"
   ASSETS ||--o{ ASSETS : "parent_asset_id (variant or part)"
   ASSETS ||--o{ PREFLIGHT_RUNS : "checked by"
+  ASSETS ||--o{ LANDMARK_SETS : "marked with"
   ASSETS ||--o{ ASSET_VERSIONS : "approved as"
   ASSETS ||--o| REVIEW_ASSETS : "review state"
   ASSETS ||--o{ REVIEW_CANDIDATES : "frozen candidates"
@@ -889,7 +912,7 @@ library/{global|projects/<name>_<pid>}/<category>/<name>/vNNN/   # legacy librar
 library/style_references/<style_id>/      # global style references
 processing_batches/<batch>/raw/<item>/ and work/<item>/<uuid>/
 part_jobs/<job>/
-preflight_preview/<id>/                  # UI preview runs (never cleaned)
+preflight_preview/<id>/                  # UI preview runs (deleted after 7 days, at startup)
 models/weights/<org--repo>/, models/code/..., models/parts-runtime/venv
 ui_processing/<sha>.json                 # UI activity journal
 logs/v9.log, faults.log, launcher.log, batches/<id>.jsonl, processing/<job>.json
@@ -900,7 +923,7 @@ The viewer lives beside it in `<install>/majd_viewer_v9/` (`viewer.html`, `viewe
 
 ### 5.8 Migration structure
 - **FACT:** there is **no migration framework**.
-  - `V9Store.init_schema` runs on every start: `CREATE TABLE/INDEX IF NOT EXISTS`, then an `ensure_column()` helper that does `ALTER TABLE ADD COLUMN` when a column is missing, then `initialize_review_schema` and `initialize_library_schema`, then `INSERT OR REPLACE meta.schema_version = 99`.
+  - `V9Store.init_schema` runs on every start: `CREATE TABLE/INDEX IF NOT EXISTS`, then an `ensure_column()` helper that does `ALTER TABLE ADD COLUMN` when a column is missing, then `initialize_review_schema`, `initialize_library_schema` and `initialize_landmark_schema`, then `INSERT OR REPLACE meta.schema_version = 100`.
   - `schema_version` is used only by `db_backup` to decide whether to take a pre-migration snapshot. **It does not gate any migration step.**
 - **Schema history** (FACT from README, docs and code):
 
@@ -912,6 +935,7 @@ The viewer lives beside it in `<install>/majd_viewer_v9/` (`viewer.html`, `viewe
   | 97 | `review_*`, with backfill of review rows for successful batch items (migration never infers an approval) |
   | 98 | `library_*` (no automatic library identities) |
   | 99 | generation ownership and resume columns on `assets` |
+  | 100 | `landmark_sets` |
   
   Before 94 there are base tables and Phase 2 columns; their exact numbering is **UNKNOWN**.
 - **Rule:** migrations must stay additive and backward compatible, because an update rollback keeps the migrated DB (README §"Updates"). **INFERENCE:** after a rollback, the older code re-stamps a lower `schema_version` on a newer schema. That is harmless today because every migration is additive.
@@ -926,7 +950,8 @@ The viewer lives beside it in `<install>/majd_viewer_v9/` (`viewer.html`, `viewe
 | Style profiles and references | Implemented, not verified | No direct tests |
 | Style Lock, conformance score | Implemented, not verified | No tests for `style_lock_check` or `style_conformance_check` |
 | Asset intake and folder import | Implemented, verified | `test_asset_intake` |
-| Preflight and calibration | Implemented, not verified | No `input_qa` unit tests; the installer has one smoke check |
+| Preflight and calibration (Phase 2.3 checks) | Implemented, verified (unit, synthetic images) | `test_input_qa`; thresholds not tuned on real sheets |
+| Manual landmarks and landmark calibration (Phase 2.2a) | Implemented, verified (unit) | `test_landmarks`, including the panel callbacks |
 | Hunyuan generation (real inference) | Implemented, **not verified on real hardware** | README §"Verification limits" |
 | Generation claims, resume, recovery | Implemented, verified (unit) | `test_generation_store`, `test_generation_resume` (needs numpy) |
 | Candidate silhouette scoring | Implemented, verified (unit, needs numpy) | `test_candidate_qa` (2) |
@@ -943,13 +968,13 @@ The viewer lives beside it in `<install>/majd_viewer_v9/` (`viewer.html`, `viewe
 | Model download and verification | Implemented, verified (unit) | `test_model_manager` |
 | Three.js viewer | Implemented, not verified | No JS tests |
 | Self-update and rollback | Implemented, verified (unit); **real cycle not verified** | `test_updater`; README |
-| CI and release automation | Implemented, verified in CI | Workflows present; beta.6 tag just pushed |
+| CI and release automation | Implemented, verified in CI | A manual dry run of `release.yml` passed; nothing has been published by it (newest release is beta.5; no `MAJD3D_RELEASE_TOKEN` secret yet) |
 | DB backups, instance lock, logging, atomic I/O | Implemented, verified (unit) | Commit `feeff14` |
 | Authentication, roles, permissions | **Missing** | |
 | Reviewer identity in audit records | **Missing** | README admits it |
 | Style Lock override reason | **Missing** | Roadmap §8 requires one |
 | Retention / garbage collection of work files | **Missing** | |
-| Landmark calibration, advanced preflight, Conformance V2 | **Planned / documented only** | Roadmap 2.2–2.4 |
+| Automatic landmark detection, remaining advanced preflight (occlusion, completeness, view classification), Conformance V2 | **Planned / documented only** | Roadmap 2.2b–2.4 |
 | Texture, topology, rig, environment, export profiles, planner | **Planned / documented only** | Roadmap Phases 3–9 |
 | Asset maturity state machine (§18) and manifest schema (§19) | **Planned / documented only** | Different from the statuses actually in use |
 | Custody, people assignment, maintenance scheduling, disposal workflow (IT-asset concepts) | **Missing / not applicable** | Outside the domain |
@@ -1002,7 +1027,7 @@ No **Critical** defect (confirmed data loss or a remotely exploitable vulnerabil
 - **Impact:** user confusion, divergent state, and slower development.
 
 **M3. `app.py` is a god module that does everything at import.** (FACT)
-- 1,236 lines with no `main()`. Importing it does the backup, takes the lock, migrates, recovers, starts servers, detects the GPU, syncs every review and launches Gradio.
+- 1,240 lines with no `main()`. Importing it does the backup, takes the lock, migrates, recovers, starts servers, detects the GPU, syncs every review and launches Gradio.
 - Tests must parse it as an AST.
 - Legacy handlers bypass the service layer, and most of them have no tests.
 
@@ -1015,7 +1040,7 @@ No **Critical** defect (confirmed data loss or a remotely exploitable vulnerabil
 
 **M5. Disk usage grows without bound.** (FACT that the copies exist and nothing cleans up; INFERENCE on scale)
 - One approved model can exist as: the generation output, frozen review-candidate copies (GLB and raw), processing raw snapshots and outputs, batch-pinned raw files, `approved_<id>/approved.glb`, and the legacy library copy.
-- `preflight_preview/`, `review_finalize/`, `part_jobs/` and successful processing runs are never cleaned.
+- `review_finalize/`, `part_jobs/` and successful processing runs are never cleaned. (`preflight_preview/` has been cleaned after 7 days since `c2b185e`.)
 - The only guard is the 2 GB free-space check for generation batches.
 
 **M6. Blender finalisation is fragile.** (FACT, plus one INFERENCE)
@@ -1040,22 +1065,23 @@ No **Critical** defect (confirmed data loss or a remotely exploitable vulnerabil
 
 | ID | Finding | Evidence |
 |---|---|---|
-| L1 | Unescaped HTML in the legacy UI and viewer: `summary_html` puts the project name into HTML unescaped; `viewer.js` writes `model.label` (which can contain the library display name) with `innerHTML`. Local single-user only | `app.py:239-255`, `viewer/viewer.js` `makeViewport` |
-| L2 | Windows-only calls in generic paths: `open_asset_folder` always calls `os.startfile`, and `find_blender` is Windows-only | `app.py:711-714`, `blender_finalize.py:18` |
+| L1 | Unescaped HTML in the legacy UI and viewer: `summary_html` puts the project name into HTML unescaped; `viewer.js` writes `model.label` (which can contain the library display name) with `innerHTML`. Local single-user only | `app.py:241-257`, `viewer/viewer.js` `makeViewport` |
+| L2 | Windows-only calls in generic paths: `open_asset_folder` always calls `os.startfile`, and `find_blender` is Windows-only | `app.py:713-716`, `blender_finalize.py:18` |
 | L3 | Dead or unused code: `store.archive_project` (no UI), `review_store.request_asset_review_retry` (unused), the `'paused'` status label | grep |
 | L4 | Every generation batch automatically re-attempts **all** `failed` assets, even non-retryable kinds (`preflight_gate`, `runtime_unavailable`). `failure_kind` is recorded but never consulted | `generation.run_batch` |
 | L5 | `utcnow()` actually returns **local** time with no zone, while `library_counters` computes its cutoff in UTC | `store.py:34-35`, `library_store.py:372` |
 | L6 | Scaling inefficiencies: N+1 queries in the legacy tables (`queue_data`, `project_table_data`); library filtering in Python after loading all rows; per-element Python validation loops in `reduction_worker.mesh_metadata`; `_canonical_raw` scans every cleanup run | respective functions |
 | L7 | INFERENCE: legacy `app.py` handlers do not set `api_name=False`, so Gradio may expose them as callable API endpoints on localhost | `app.py` (0 occurrences of `api_name=False`) |
 | L8 | INFERENCE: Python `urllib` may forward the `HF_TOKEN` Authorization header on HF's redirects to its CDN | `model_manager._request` |
-| L9 | When a second instance starts, it still backs up and migrates the DB before failing to bind its ports (only recovery is skipped) | `app.py:87-94` |
+| L9 | When a second instance starts, it still backs up and migrates the DB before failing to bind its ports (only recovery is skipped) | `app.py:88-95` |
 | L10 | A reviewer can reject an APPROVED asset. This is allowed by design, but the earlier approval references stay on `review_assets` (`approved_*` columns) | `review_store._review_decision` |
+| L11 | Preflight thresholds (blur, duplicates, mirror, landmark consistency) were set on synthetic images only. A landmark FAIL blocks calibration and can trip the generation gate | `input_qa.py`, `landmarks.py` |
 
 ### Test coverage summary
-- **FACT:** about 350 test methods across 43 modules, using real SQLite, real Gradio declarations and mocked model and Blender execution.
+- **FACT:** about 365 test methods across 45 modules, using real SQLite, real Gradio declarations and mocked model and Blender execution.
 - **Well covered:** library, review, batch, processing, updater.
 - **Gaps (FACT):**
-  - `input_qa` (preflight, calibration, geometry score)
+  - the geometry-style score (preflight checks, calibration and landmarks are covered since `c2b185e` and `73d8a6c`)
   - `blender_finalize`
   - Style Lock and conformance
   - variants and promote-global
@@ -1108,9 +1134,12 @@ No **Critical** defect (confirmed data loss or a remotely exploitable vulnerabil
 | `3376fc5` … `61925d0` | 2026-10-09 | Windows CI; SQLite connections closed on context exit; Windows test fixes |
 | `36648f0` … `46d2a11` | 2026-10-10 | Release pipeline: launcher health fix, CI parity, automated publishing, launcher test |
 | `feeff14` | 2026-10-10 | Production reliability: logging, atomic writes, recovery, resume, backups, schema 99 |
-| `b9c5e14` | 2026-10-10 | Version 9.0.0-beta.6 (tagged) |
+| `b9c5e14` | 2026-10-10 | Version 9.0.0-beta.6 (a local tag was created and later deleted; never published) |
+| `c2b185e` | 2026-10-10 | Input QA Phase 2.3: detail rules, shared calibration scale, alpha, blur, contrast, duplicate and mirror checks |
+| `73d8a6c` | 2026-10-10 | Manual landmark calibration (Phase 2.2a); version 9.0.0-beta.7 |
+| `cdfe9c3`, `666d5c8`, `9dd34d3` | 2026-10-10 | File-like captured stdout; this report and `/update-handoff`; schema 100 for `landmark_sets` |
 
-The direction is clear: break up the `app.py` monolith, then CI and release automation, then production-reliability hardening.
+The direction is clear: break up the `app.py` monolith, then CI and release automation, then production-reliability hardening, then the first roadmap features (2.3 and 2.2a).
 
 ### 8.4 Earlier architectural decisions
 See §3.6 (D1 to D11).
@@ -1132,7 +1161,7 @@ See §3.6 (D1 to D11).
 ### 8.6 Known unresolved issues (documented)
 - Real Blender, native FaceReducer and Hunyuan GPU verification are "intentionally deferred" (README).
 - The Windows install/update cycle with a GPU has not been tested (README, roadmap §9).
-- The geometry-style score is experimental and has no semantic landmarks (README, `input_qa`).
+- The geometry-style score is experimental, and landmarks are manual only (README, `input_qa`, `landmarks`).
 - The native floater and degenerate-face toggles are "reserved" and not wired up (README §"Post-generation FaceReducer pipeline").
 - There is no authenticated reviewer identity (README).
 - The update package never deletes files that were removed from the source; dependency changes need a new bootstrap (README).
@@ -1168,6 +1197,7 @@ See §10.16.
    - an end-to-end golden asset, including a multi-view one
    - a parts job
    - install, update, a forced failure, and rollback
+   - check the preflight and landmark thresholds on real character sheets
    - record the results in the repo
 3. **Harden Blender finalisation (M6):**
    - add a timeout and capture the log
@@ -1199,7 +1229,6 @@ See §10.16.
 10. **Use `failure_kind`** to stop automatically re-running non-retryable failures (L4). Show the failure kinds in the queue.
 11. **Escape every HTML and JS interpolation** (L1), and set `api_name=False` on the legacy handlers (L7).
 12. **Fill the test gaps:**
-    - `input_qa` (synthetic images)
     - `style_lock_check` and conformance
     - variants and promote-global
     - the content of the Blender finalisation script
@@ -1207,7 +1236,7 @@ See §10.16.
 13. **Normalise timestamps to timezone-aware UTC** (L5).
 
 ### P3: Feature roadmap (as documented)
-Follow `roadmap.md` §20 once P0 and P1 are done: landmark calibration, then advanced preflight, then Conformance V2, then texture, then geometry QA and topology, then rig, then environment, then export profiles, then planner. Implement the §18 maturity state machine as a separate `maturity_status` dimension, so the existing generation and review statuses keep working.
+Follow `roadmap.md` §20 once P0 and P1 are done: automatic landmark detection (after evaluating a detector on real sheets), then the rest of advanced preflight, then Conformance V2, then texture, then geometry QA and topology, then rig, then environment, then export profiles, then planner. Implement the §18 maturity state machine as a separate `maturity_status` dimension, so the existing generation and review statuses keep working.
 
 ### Production-readiness checklist (adapted from `roadmap.md` §22)
 - [ ] Works on real assets on the production machine (GPU and Blender), including a batch of more than 20 assets.
@@ -1222,7 +1251,7 @@ Follow `roadmap.md` §20 once P0 and P1 are done: landmark calibration, then adv
 
 ## 10. ASSET MANAGEMENT — COMPLETE CONTEXT FOR CHATGPT
 
-> Self-contained summary. Labels: FACT / INFERENCE / UNKNOWN. Repo snapshot: `main` @ `b9c5e14`, version 9.0.0-beta.6, DB schema 99, analysed 2026-10-10.
+> Self-contained summary. Labels: FACT / INFERENCE / UNKNOWN. Repo snapshot: `main` @ `9dd34d3`, version 9.0.0-beta.7 (not published; devices see beta.5), DB schema 100, updated 2026-10-10.
 
 ### 10.1 Project identity and purpose
 - **Name:** Majd Studio 3D (V9, "Multi-Project / Multi-Style Asset Factory").
@@ -1249,7 +1278,7 @@ Follow `roadmap.md` §20 once P0 and P1 are done: landmark calibration, then adv
 ### 10.4 Architecture
 - **A monolithic in-process app:**
   - `app.py` is the composition root, the legacy UI and its handlers, and does everything at import time.
-  - Newer features are layered as `*_gradio` (bindings), then `*_ui` (escaped HTML), then `*_controller` (read models), then `*_service` (commands), then `V9Store` (SQLite with `ReviewStoreMixin` and `LibraryStoreMixin`).
+  - Newer features are layered as `*_gradio` (bindings), then `*_ui` (escaped HTML), then `*_controller` (read models), then `*_service` (commands), then `V9Store` (SQLite with `ReviewStoreMixin`, `LibraryStoreMixin` and `LandmarkStoreMixin`).
 - **Heavy runtimes run as subprocesses** speaking a JSON protocol: Blender cleanup and finalisation, the FaceReducer worker, the parts worker.
 - **Background threads:** the serial processing-batch executor and the startup library integrity scan.
 - **The viewer** is fed by atomically rewriting `state.json`, which the viewer polls.
@@ -1261,7 +1290,7 @@ Follow `roadmap.md` §20 once P0 and P1 are done: landmark calibration, then adv
 |---|---|
 | Projects / Styles | Workspaces; art rules (face budget, QA thresholds, generation defaults, calibration, Style Lock); style reference images |
 | Intake | Create assets from view images or a folder (`name__front.png`); engine auto-selection |
-| Preflight / Calibration | Deterministic image checks, multi-view scale consistency, normalised canvases, generation gate |
+| Preflight / Calibration / Landmarks | Deterministic image checks (blur, contrast, framing, duplicates, mirrored views), multi-view scale consistency, shared-scale calibration with alpha, manual body landmarks with cross-view consistency and landmark-based calibration, generation gate |
 | Generation | Claim the asset, preflight, load the model, N candidates with OOM retries at lower resolution, silhouette IoU scoring, resume markers, failure kinds |
 | Processing | Pinned raw input, then FaceReducer, then Blender 4.x cleanup, then validation; reuse cache; immutable provenance |
 | Processing batches | Persisted serial queue: explicit start, cancel, retry, crash recovery |
@@ -1276,7 +1305,7 @@ Follow `roadmap.md` §20 once P0 and P1 are done: landmark calibration, then adv
 ### 10.6 Core business rules (FACT)
 1. **A human approval is the only path to an approved result.** Ranking never selects or approves. Approval requires an **explicitly saved selection** and status `NEEDS_REVIEW`.
 2. **Style Lock** fails a candidate when: a required preflight is missing, failed or below its minimum; faces exceed the style's `poly_budget`; silhouette falls below its minimum; or the geometry-style score falls below its minimum (when one is set). It warns when resolution, steps or guidance differ from the style. A FAIL blocks approval unless overridden. The override exists only in the legacy Review tab, is recorded as `OVERRIDE`, and needs **no reason**.
-3. **The preflight gate** stops generation when the style requires preflight and the result is a FAIL or below `min_preflight_score`.
+3. **The preflight gate** stops generation when the style requires preflight and the result is a FAIL or below `min_preflight_score`. Two views sharing one file, or landmarks more than 6% of body height apart, are FAILs.
 4. **Nothing is overwritten:**
    - raw meshes are pinned
    - candidates are content-addressed and copied
@@ -1329,9 +1358,9 @@ Follow `roadmap.md` §20 once P0 and P1 are done: landmark calibration, then adv
   - disposal means archive only
   - auditing means review and library events, **with no actor**
 
-### 10.8 Database model (SQLite, schema 99, 19 tables)
+### 10.8 Database model (SQLite, schema 100, 20 tables)
 - **Organisation:** `projects`, `style_profiles`, `style_references`.
-- **Work items:** `assets` (generation/review), `preflight_runs`, `asset_versions` (approved results; `id` = `approved_result_ref`).
+- **Work items:** `assets` (generation/review), `preflight_runs`, `landmark_sets`, `asset_versions` (approved results; `id` = `approved_result_ref`).
 - **Processing:** `processing_runs`, `cleanup_runs`, `processing_batches`, `processing_batch_items`.
 - **Review:** `review_assets`, `review_candidates` (ID = content SHA-256), `review_events`.
 - **Library:** `library_assets`, `library_asset_versions`, `library_events`.
@@ -1349,6 +1378,7 @@ Follow `roadmap.md` §20 once P0 and P1 are done: landmark calibration, then adv
 **Verified by unit or integration tests (mocked runtimes):**
 - intake
 - generation claims and resume
+- preflight checks, calibration and manual landmarks (synthetic images)
 - processing and cleanup orchestration
 - processing batches
 - human review (including race conditions)
@@ -1360,19 +1390,20 @@ Follow `roadmap.md` §20 once P0 and P1 are done: landmark calibration, then adv
 
 **Implemented but not verified:**
 - real Hunyuan inference, Blender cleanup and finalisation, P3-SAM/XPart
-- preflight and calibration
+- preflight and landmark thresholds on real images
 - Style Lock and conformance
 - the legacy library and variants
 - the viewer JS
 - the real install/update cycle
 
 **Local test run during this analysis:**
-- 344 tests ran: 282 passed, 62 skipped, 0 failed.
-- Environment: Python 3.13 without numpy, gradio, torch or Blender. The skips are the Gradio, numpy and Blender suites.
+- Python 3.13.5 without numpy, gradio, torch or Blender: 360 tests ran, 287 passed, 73 skipped (the Gradio, numpy and Blender suites), 0 failed.
+- Python 3.10 with numpy, Pillow, trimesh, scipy and gradio 5.33.0: 360 ran, 2 skipped (the real-Blender suites), 0 failed.
+- CI on Windows with the same packages, at `9dd34d3`: 360 ran, 3 skipped (the Blender suites plus one POSIX-only path test), 0 failed; the launcher health test passed.
 
 ### 10.11 Unfinished work
 **Documented only, not in code:**
-- landmark calibration, advanced preflight, Conformance V2
+- automatic landmark detection (2.2b), occlusion, completeness and view-classification preflight, Conformance V2
 - texture/PBR pipeline
 - retopology, topology and UV QA
 - character rig (Rigify, face rig)
@@ -1421,11 +1452,12 @@ Follow `roadmap.md` §20 once P0 and P1 are done: landmark calibration, then adv
   - Windows-only calls
   - dead code
   - automatic retry of non-retryable failures
+  - preflight and landmark thresholds tuned on synthetic images only
   - local-versus-UTC timestamps
   - N+1 queries
 
 ### 10.14 Current development priorities
-- **FACT, from recent commits:** reliability hardening (roadmap Phase 8), and CI and release automation (beta.6 was just tagged and published).
+- **FACT, from recent commits:** reliability hardening (roadmap Phase 8), CI and release automation, the Phase 2.3 preflight checks and manual landmarks (2.2a). Version 9.0.0-beta.7 is ready but **unpublished**: publishing waits on the owner, and the tag workflow needs the `MAJD3D_RELEASE_TOKEN` secret, which is not set.
 - **FACT, from `roadmap.md` §20:**
   1. validate on the real Windows GPU machine
   2. fix what that finds
@@ -1480,11 +1512,10 @@ Follow `roadmap.md` §20 once P0 and P1 are done: landmark calibration, then adv
 ### Appendix A: What was executed during this analysis
 - **Read-only inspection:** `git log`, `git status`, `git diff`, `git show --stat`; `cat`, `sed` and `grep` across the repository; line counts.
 - **Tests:** `python3 -W ignore -m unittest discover -s tests -t .`
-  - Run with `PYTHONDONTWRITEBYTECODE=1` and `TMPDIR` pointed at a scratch directory outside the project.
-  - Interpreter: Python 3.13.5 (miniconda), without numpy, Pillow, gradio, torch or Blender.
-  - **Result:** 344 tests ran, **OK (282 passed, 62 skipped, 0 failures, 0 errors)**.
-  - Skipped: Gradio suites (50), numpy/Pillow suites (10: generation resume 5, processing 1, candidate QA 2, parts worker 2), and two real-Blender test classes.
-  - `git status` and file modification times were checked before and after: **the tests changed nothing in the repository.**
+  - Python 3.13.5 without numpy, Pillow, gradio, torch or Blender: **360 ran, 287 passed, 73 skipped, 0 failures, 0 errors**. The skips are the Gradio, numpy/Pillow and real-Blender suites.
+  - Python 3.10 with numpy, Pillow, trimesh, scipy and gradio 5.33.0: **360 ran, 2 skipped** (real Blender), 0 failures.
+  - GitHub Actions on Windows at `9dd34d3`: 360 ran, 3 skipped, 0 failures.
+- **This revision** read the diffs `b9c5e14..9dd34d3` and every file they touch, and checked `gh release list -R muisawe/Majd3D`, `gh secret list` and the GitHub Actions results.
 - **Not executed:**
   - the application itself (it needs CUDA, Hunyuan and Gradio)
   - Blender
@@ -1493,16 +1524,18 @@ Follow `roadmap.md` §20 once P0 and P1 are done: landmark calibration, then adv
   - `scripts/publish_release.py`
   - the GitHub Actions workflows
   - any network download
-- **Files created in the project:** only this report. No application code, configuration or data was modified.
+- **Files changed by this analysis:** only this report. (The schema-100 code change was committed separately as `9dd34d3` before this revision.)
 
 ### Appendix B: Key file and function index
 | Concern | Location |
 |---|---|
-| App startup order | `majd_studio_3d/app.py:35-117` |
+| App startup order | `majd_studio_3d/app.py:35-119` |
 | Schema and migrations | `store.py: V9Store.init_schema`, `review_store.initialize_review_schema`, `library_store.initialize_library_schema` |
 | Generation claim and finish | `store.py: claim_asset_generation`, `finish_asset_generation`, `recover_interrupted_generations`, `requeue_asset_generation` |
 | Generation pipeline | `generation.py: GenerationEngine._generate`, `process_asset`, `run_batch` |
 | Style Lock | `store.py: style_lock_check`, `style_conformance_check` |
+| Preflight and calibration | `input_qa.py: analyze_image`, `analyze_multiview`, `shared_target_height`, `calibrate_image`, `run_preflight` |
+| Landmarks | `landmarks.py: normalize`, `consistency`, `proportions`; `landmark_store.py: save_landmarks`, `landmarks_for_asset`; `landmark_gradio.py: mount_landmark_panel` |
 | Processing pipeline | `processing.py: ProcessingService.process`, `_canonical_raw`, `process_generated_candidates` |
 | Batch queue | `store.py: create_processing_batch … hide_processing_batch`; `batch_processing.py: BatchExecutor` |
 | Review | `review_store.py: sync_review_candidates`, `select_review_candidate`, `approve_review_candidate`; `review_service.py: ReviewService` |
