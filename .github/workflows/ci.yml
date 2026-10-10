@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:
 
 jobs:
   test:
@@ -11,17 +12,34 @@ jobs:
     env:
       PYTHONUTF8: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          # Match the Hunyuan3D-2.1 venv on the production machines.
+          python-version: "3.10"
       - name: Install test dependencies
-        run: python -m pip install numpy pillow trimesh scipy gradio
+        # Same gradio as the Windows installer; gradio 5.33 needs requests and huggingface_hub<1.
+        run: python -m pip install numpy pillow trimesh scipy "gradio==5.33.0" "huggingface_hub<1" requests
+      - name: Compile application
+        run: python -m compileall -q majd_studio_3d majd_studio_3d_v9.py
       - name: Run tests
         run: python -W ignore -m unittest discover -s tests -t .
+      - name: Parse PowerShell scripts
+        shell: powershell
+        run: |
+          $failed = $false
+          foreach ($file in Get-ChildItem -Path . -Recurse -Filter *.ps1 | Where-Object { $_.FullName -notmatch '\\\.git\\' }) {
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$null, [ref]$errors)
+            foreach ($e in $errors) { Write-Host "$($file.Name):$($e.Extent.StartLineNumber) $($e.Message)"; $failed = $true }
+          }
+          if ($failed) { exit 1 }
+      - name: Launcher health check
+        shell: powershell
+        run: ./tests/windows/test_launcher.ps1
       - name: Build release packages
         run: python scripts/build_release.py --output dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-packages
           path: dist/

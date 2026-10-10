@@ -1,8 +1,8 @@
 ﻿$ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-$project   = "E:\AI\Hunyuan3D-2.1"
-$mvRepo    = "E:\AI\Hunyuan3D-2-MV"
+$project   = if ($env:MAJD_STUDIO_ROOT) { $env:MAJD_STUDIO_ROOT } else { "E:\AI\Hunyuan3D-2.1" }
+$mvRepo    = if ($env:MAJD_MV_REPO) { $env:MAJD_MV_REPO } else { "E:\AI\Hunyuan3D-2-MV" }
 $sourceDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $packageDir = Split-Path -Parent $sourceDir
 $appSrc = Join-Path $packageDir "majd_studio_3d"
@@ -56,7 +56,7 @@ if (!(Test-Path "$mvRepo\.git")) {
 
 Write-Host "Installing/updating V9 runtime packages..."
 & $python -m pip install --upgrade `
-    "gradio==5.33.0" `
+    "gradio==5.33.0" "huggingface_hub<1" requests `
     pillow numpy trimesh `
     omegaconf pymeshlab pygltflib xatlas accelerate rembg onnxruntime
 if ($LASTEXITCODE -ne 0) { throw "Runtime dependency installation failed." }

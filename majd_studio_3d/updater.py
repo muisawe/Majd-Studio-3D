@@ -43,6 +43,7 @@ WINDOWS_RESERVED = {"CON", "PRN", "AUX", "NUL", "COM1", "COM2", "LPT1", "LPT2"}
 REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 VERSION_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)(?:-(beta|rc)\.(\d+))?$")
 MAX_PACKAGE_BYTES = 50 * 1024 * 1024
+MAX_PACKAGE_ATTEMPTS = 3
 MAX_PACKAGE_FILES = 1000
 
 
@@ -375,12 +376,28 @@ def check_and_apply(root: Path = ROOT) -> bool:
         return False
     updates_dir = root / "majd_v9" / "updates"
     updates_dir.mkdir(parents=True, exist_ok=True)
+    rejected_file = updates_dir / "rejected_version.json"
+    rejected = json.loads(rejected_file.read_text(encoding="utf-8")) if rejected_file.exists() else {}
+    if rejected.get("version") != candidate["version"]:
+        rejected = {}
+    if rejected.get("attempts", 0) >= MAX_PACKAGE_ATTEMPTS:
+        print(f"Skipping Majd Studio {candidate['version']}: package was rejected {rejected['attempts']} times ({rejected.get('reason', '')})")
+        return False
     with tempfile.TemporaryDirectory(prefix="download-", dir=updates_dir) as temporary:
         staging = Path(temporary)
         package = staging / PACKAGE_NAME
-        download_package(candidate["url"], candidate["digest"], package, repository)
-        extracted = staging / "extracted"
-        extract_package(package, extracted, candidate["version"])
+        try:
+            download_package(candidate["url"], candidate["digest"], package, repository)
+            extracted = staging / "extracted"
+            extract_package(package, extracted, candidate["version"])
+        except (ValueError, SyntaxError, zipfile.BadZipFile) as exc:
+            # A package that fails verification is retried a few times (in case the
+            # download was damaged) and then skipped until a newer release appears.
+            record = {"version": candidate["version"], "attempts": rejected.get("attempts", 0) + 1, "reason": str(exc)[:300]}
+            temporary_record = rejected_file.with_name(rejected_file.name + ".new")
+            temporary_record.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+            os.replace(temporary_record, rejected_file)
+            raise
         apply_package(extracted, candidate["version"], root)
     print(f"Applied Majd Studio {candidate['version']}; awaiting startup check")
     return True

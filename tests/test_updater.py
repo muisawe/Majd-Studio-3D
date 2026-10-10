@@ -128,6 +128,29 @@ class PackageTests(unittest.TestCase):
         self.assertEqual(read_version(installed), "9.0.0-beta.1")
         self.assertFalse((updates / "pending.json").exists())
 
+    def test_rejected_package_is_retried_then_skipped(self):
+        installed = self.root / "installed"
+        self.create_tree(installed, "9.0.0-beta.1")
+        (installed / "update_config.json").write_text(
+            json.dumps({"repository": "owner/repo", "channel": "beta"}), encoding="utf-8"
+        )
+        release = {"tag_name": "v9.0.1-beta.1", "prerelease": True, "assets": [VersionTests.asset()]}
+        newer = {"tag_name": "v9.0.2-beta.1", "prerelease": True, "assets": [VersionTests.asset()]}
+        with patch("majd_studio_3d.updater.fetch_releases", return_value=[release]), \
+             patch("majd_studio_3d.updater.download_package", side_effect=ValueError("Update package SHA-256 mismatch")) as download:
+            for _ in range(3):
+                with self.assertRaises(ValueError):
+                    check_and_apply(installed)
+            self.assertFalse(check_and_apply(installed))
+        self.assertEqual(download.call_count, 3)
+        # Network errors are not counted, and a newer release is tried again.
+        with patch("majd_studio_3d.updater.fetch_releases", return_value=[newer]), \
+             patch("majd_studio_3d.updater.download_package", side_effect=OSError("offline")) as download:
+            with self.assertRaises(OSError):
+                check_and_apply(installed)
+        self.assertEqual(download.call_count, 1)
+        self.assertEqual(read_version(installed), "9.0.0-beta.1")
+
     def test_rejects_extra_zip_entry(self):
         source = self.root / "source"
         self.create_tree(source, "9.0.1", source_layout=True)

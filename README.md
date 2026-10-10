@@ -45,7 +45,7 @@ install.cmd       نقطة تثبيت Windows
 
 1. فك ضغط `majd-studio-3d-bootstrap.zip`.
 2. أغلق الاستديو إن كان مفتوحًا، ثم شغّل `install.cmd`.
-3. يتوقع المثبّت وجود Hunyuan3D-2.1 في `E:\AI\Hunyuan3D-2.1`، ويُبقي قاعدة مشاريع V9 والاختصار المكتبي.
+3. يتوقع المثبّت وجود Hunyuan3D-2.1 في `E:\AI\Hunyuan3D-2.1` (أو المسار في متغير البيئة `MAJD_STUDIO_ROOT`)، ويُبقي قاعدة مشاريع V9 والاختصار المكتبي.
 
 إذا كانت نسخة Beta 1 مثبتة مسبقًا، يلزم تشغيل Bootstrap الجديد مرة واحدة لأن بنية الحزمة تغيّرت؛ المحدّث القديم لا يفهم مسارات الملفات الجديدة.
 
@@ -65,13 +65,15 @@ install.cmd       نقطة تثبيت Windows
 
 ## نشر إصدار جديد
 
-1. أنشئ مستودع GitHub عامًا باسم `Majd3D` ضمن الحساب المضبوط. يكفي Commit أولي يحوي README؛ نشر كود المصدر في المستودع ليس شرطًا لرفع الحزم.
-2. ارفع `version.json` إلى رقم أعلى بصيغة `MAJOR.MINOR.PATCH`، ويمكن إضافة `-beta.N` أو `-rc.N`.
-3. شغّل `python3 -m unittest discover -v` ثم `python3 scripts/build_release.py`.
-4. أنشئ GitHub Release بتاج `v` متبوعًا برقم الإصدار، وارفع من `dist/` الملفين `majd-studio-3d-update.zip` و`majd-studio-3d-bootstrap.zip` دون تغيير اسم حزمة التحديث.
-5. اختبر الإصدار على Windows. الإصدار المطابق لما هو مثبت لا يُنزّل؛ أول تحديث تلقائي يتطلب رقمًا أعلى.
+الكود في `muisawe/Majd-Studio-3D`، والإصدارات تُنشر إلى `muisawe/Majd3D` الذي تقرأ منه الأجهزة. النشر آلي عبر [release.yml](.github/workflows/release.yml):
 
-يتجاهل المحدّث أي Release لا يقدم SHA-256 للحزمة في GitHub API أو يحتوي حزمة ببنية غير متوقعة.
+1. ارفع `version.json` إلى رقم أعلى بصيغة `MAJOR.MINOR.PATCH`، ويمكن إضافة `-beta.N` أو `-rc.N`، ثم commit وpush إلى `main`.
+2. اختبر الحزمة من CI أولًا: نزّل `release-packages` من تبويب Actions وثبّت `majd-studio-3d-bootstrap.zip` على جهاز واحد.
+3. انشر بوسم مطابق: `git tag v<الإصدار>` ثم `git push origin v<الإصدار>`.
+
+يشغّل الـWorkflow الاختبارات، ويرفض رقمًا موجودًا أو أقدم من آخر إصدار، ويرفع الحزمتين كـdraft، ويطابق SHA-256 الذي يحسبه GitHub مع البناء قبل النشر. يحتاج secret باسم `MAJD3D_RELEASE_TOKEN`: Fine-grained token على `muisawe/Majd3D` فقط بصلاحية Contents: Read and write. تشغيله يدويًا من Actions يجري تحققًا كاملًا دون نشر.
+
+يتجاهل المحدّث أي Release لا يقدم SHA-256 للحزمة في GitHub API أو يحتوي حزمة ببنية غير متوقعة. الحزمة التي تفشل في التحقق تُعاد محاولتها 3 مرات ثم تُتخطى حتى يصدر رقم أحدث.
 
 ## فحص أول أصل
 

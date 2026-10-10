@@ -1,5 +1,8 @@
 $ErrorActionPreference = "Stop"
-$project = "E:\AI\Hunyuan3D-2.1"
+# The installer places this script in <install root>\scripts; MAJD_STUDIO_ROOT overrides it.
+$project = if ($env:MAJD_STUDIO_ROOT) { $env:MAJD_STUDIO_ROOT }
+           elseif (Test-Path (Join-Path (Split-Path -Parent $PSScriptRoot) "majd_studio_3d_v9.py")) { Split-Path -Parent $PSScriptRoot }
+           else { "E:\AI\Hunyuan3D-2.1" }
 $python = "$project\.venv\Scripts\python.exe"
 $pythonw = "$project\.venv\Scripts\pythonw.exe"
 $app = "$project\majd_studio_3d_v9.py"
@@ -14,16 +17,43 @@ function Log-Message([string]$message) {
     Add-Content -Path $logPath -Value "$(Get-Date -Format o) $message"
 }
 
+# A venv's python.exe/pythonw.exe on Windows is a redirector that runs the real
+# interpreter as a child process, so the listener may belong to a descendant.
+function Get-ProcessTreeIds([int]$rootId) {
+    $ids = @($rootId)
+    $frontier = @($rootId)
+    for ($depth = 0; $depth -lt 3 -and $frontier.Count -gt 0; $depth++) {
+        $children = @()
+        foreach ($parent in $frontier) {
+            $children += @(Get-CimInstance Win32_Process -Filter "ParentProcessId=$parent" -ErrorAction SilentlyContinue |
+                ForEach-Object { [int]$_.ProcessId })
+        }
+        $ids += $children
+        $frontier = $children
+    }
+    return $ids
+}
+
+function Stop-ProcessTree([System.Diagnostics.Process]$process) {
+    $ids = @(Get-ProcessTreeIds $process.Id)
+    [array]::Reverse($ids)
+    foreach ($id in $ids) { Stop-Process -Id $id -Force -ErrorAction SilentlyContinue }
+}
+
 function Wait-For-Studio([System.Diagnostics.Process]$process) {
-    for ($i = 0; $i -lt 150; $i++) {
+    for ($i = 0; $i -lt 300; $i++) {
         Start-Sleep -Seconds 1
         if ($process.HasExited) { return $false }
         try {
+            $owners = @(Get-ProcessTreeIds $process.Id)
             $listener = Get-NetTCPConnection -LocalPort 7864 -State Listen -ErrorAction SilentlyContinue |
-                Where-Object { $_.OwningProcess -eq $process.Id }
+                Where-Object { $owners -contains [int]$_.OwningProcess } | Select-Object -First 1
             if ($listener) {
-                $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 1 -ErrorAction Stop
-                if ($response.StatusCode -eq 200) { return $true }
+                $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
+                if ($response.StatusCode -eq 200) {
+                    Log-Message "Studio healthy (launcher PID $($process.Id), listener PID $($listener.OwningProcess))"
+                    return $true
+                }
             }
         } catch {}
     }
@@ -82,7 +112,7 @@ function Start-MajdStudio {
 
     Log-Message "Studio failed to start or confirm update"
     if (Test-Path $pending) {
-        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        Stop-ProcessTree $process
         & $python $updater rollback | ForEach-Object { Log-Message "Updater: $_" }
         if ($LASTEXITCODE -eq 0) {
             Log-Message "Rolled back failed update"
@@ -97,24 +127,27 @@ function Start-MajdStudio {
     return 1
 }
 
-$launchMutex = [System.Threading.Mutex]::new($false, "Local\MajdStudio3DLaunch")
-$ownsMutex = $false
-$status = 1
-try {
+# Dot-sourcing (". .\launch_windows.ps1") loads the functions without launching, for tests.
+if ($MyInvocation.InvocationName -ne ".") {
+    $launchMutex = [System.Threading.Mutex]::new($false, "Local\MajdStudio3DLaunch")
+    $ownsMutex = $false
+    $status = 1
     try {
-        $ownsMutex = $launchMutex.WaitOne(360000)
-    } catch [System.Threading.AbandonedMutexException] {
-        $ownsMutex = $true
+        try {
+            $ownsMutex = $launchMutex.WaitOne(360000)
+        } catch [System.Threading.AbandonedMutexException] {
+            $ownsMutex = $true
+        }
+        if ($ownsMutex) {
+            $status = Start-MajdStudio
+        } else {
+            Log-Message "Timed out waiting for another Majd Studio launch"
+        }
+    } catch {
+        Log-Message "Launcher error: $_"
+    } finally {
+        if ($ownsMutex) { $launchMutex.ReleaseMutex() }
+        $launchMutex.Dispose()
     }
-    if ($ownsMutex) {
-        $status = Start-MajdStudio
-    } else {
-        Log-Message "Timed out waiting for another Majd Studio launch"
-    }
-} catch {
-    Log-Message "Launcher error: $_"
-} finally {
-    if ($ownsMutex) { $launchMutex.ReleaseMutex() }
-    $launchMutex.Dispose()
+    exit $status
 }
-exit $status
