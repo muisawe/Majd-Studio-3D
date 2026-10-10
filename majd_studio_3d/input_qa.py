@@ -20,6 +20,7 @@ import numpy as np
 from PIL import Image
 
 from .atomic_io import atomic_write_json
+from .landmarks import body_span, complete_for, consistency as landmark_consistency, proportions
 
 VIEW_KEYS = ("front", "back", "left", "right", "threeq", "detail")
 CARDINAL_KEYS = ("front", "back", "left", "right")
@@ -318,9 +319,11 @@ def _target_height(canvas: int, target_occupancy: float) -> int:
 
 
 def calibrate_image(path: str, destination: str, canvas: int = 1024, target_occupancy: float = 0.82,
-                    target_height: Optional[int] = None) -> dict:
+                    target_height: Optional[int] = None, landmarks: Optional[dict] = None) -> dict:
     """Place the subject on a square canvas, feet on a common baseline.
 
+    With landmarks, `target_height` is the head_top→feet span and the feet
+    landmark sits on the baseline; otherwise the silhouette's box is used.
     The PNG keeps the subject mask as alpha; transparent pixels are white, so
     tools that drop alpha still see a white background.
     """
@@ -336,7 +339,8 @@ def calibrate_image(path: str, destination: str, canvas: int = 1024, target_occu
     subject = Image.fromarray(rgba, "RGBA").crop((x0,y0,x1,y1))
 
     target_h = int(target_height) if target_height else _target_height(canvas, target_occupancy)
-    scale = target_h/max(subject.height, 1)
+    span = body_span(landmarks or {})
+    scale = target_h/(span if span else max(subject.height, 1))
     tw = max(1, int(subject.width*scale)); th=max(1,int(subject.height*scale))
     max_w = int(canvas*0.90)
     if tw > max_w:
@@ -346,7 +350,7 @@ def calibrate_image(path: str, destination: str, canvas: int = 1024, target_occu
     subject = subject.resize((tw,th), Image.Resampling.LANCZOS)
     x=(canvas-tw)//2
     baseline=int(canvas*0.94)
-    y=max(0,baseline-th)
+    y=max(0,baseline-th) if not span else int(round(baseline-(landmarks["feet"]["y"]-y0)*scale))
     out = Image.new("RGBA", (canvas,canvas), (255,255,255,255))
     out.alpha_composite(subject,(x,y))
     alpha = Image.new("L", (canvas,canvas), 0)
@@ -357,14 +361,18 @@ def calibrate_image(path: str, destination: str, canvas: int = 1024, target_occu
     return {"path":str(dst),"canvas":canvas,"x":x,"y":y,"width":tw,"height":th}
 
 
-def shared_target_height(report: dict, canvas: int, target_occupancy: float) -> int:
-    """One subject height for every generation view, small enough that the widest still fits."""
+def shared_target_height(report: dict, canvas: int, target_occupancy: float, landmarks: Optional[dict] = None) -> int:
+    """One subject height for every generation view, small enough that the widest still fits.
+
+    With landmarks the height is the head_top→feet span; otherwise the silhouette box height.
+    """
     height = _target_height(canvas, target_occupancy)
     max_w = int(canvas * 0.90)
     for key in GENERATION_KEYS:
         box = (report["views"].get(key) or {}).get("bbox")
         if box:
-            width, tall = max(1, box[2]-box[0]), max(1, box[3]-box[1])
+            width = max(1, box[2]-box[0])
+            tall = body_span((landmarks or {}).get(key) or {}) or max(1, box[3]-box[1])
             height = min(height, int(max_w * tall / width))
     return max(16, height)
 
@@ -375,12 +383,29 @@ def run_preflight(
     calibration_enabled: bool = True,
     calibration_canvas: int = 1024,
     target_occupancy: float = 0.82,
+    landmarks: Optional[dict] = None,
 ) -> dict:
+    """Check the inputs and calibrate them. `landmarks` is {view: {name: {"x", "y"}}} on the input images."""
     report = analyze_multiview(paths)
+    present = [key for key in GENERATION_KEYS if key in report["views"]]
+    marked = {key: points for key, points in (landmarks or {}).items() if key in present and points}
+    use_landmarks = complete_for(marked, present)
+    if marked:
+        penalties = {"FAIL": 0.15, "WARN": 0.05}
+        for issue in landmark_consistency(marked):
+            report["issues"].append(issue)
+            report["score"] = max(0.0, report["score"] - penalties[issue["level"]])
+            if issue["level"] == "FAIL":
+                report["status"] = "FAIL"
+            elif report["status"] == "PASS":
+                report["status"] = "WARN"
+        report["landmarks"] = {"mode": "landmarks" if use_landmarks else "silhouette",
+                               "proportions": proportions(marked.get("front") or {})}
     calibrated = {}
     if report["status"] != "FAIL" and calibration_enabled:
         out = Path(output_dir); out.mkdir(parents=True,exist_ok=True)
-        height = shared_target_height(report, int(calibration_canvas), float(target_occupancy))
+        height = shared_target_height(report, int(calibration_canvas), float(target_occupancy),
+                                      marked if use_landmarks else None)
         # Detail close-ups are not generation inputs, so they are not calibrated.
         for key in GENERATION_KEYS:
             p=paths.get(key)
@@ -388,6 +413,7 @@ def run_preflight(
                 calibrated[key]=calibrate_image(
                     p, str(out/f"{key}.png"),
                     canvas=int(calibration_canvas), target_occupancy=float(target_occupancy), target_height=height,
+                    landmarks=marked.get(key) if use_landmarks else None,
                 )
         atomic_write_json(out/"calibration.json",calibrated)
 
@@ -482,5 +508,9 @@ def format_report(result: dict) -> str:
         lines.append("No blocking issues detected.")
     if result.get("calibrated"):
         lines.append("")
-        lines.append(f"Calibration: {len(result['calibrated'])} view(s) normalized.")
+        mode = (result.get("landmarks") or {}).get("mode", "silhouette")
+        lines.append(f"Calibration: {len(result['calibrated'])} view(s) normalized by {mode}.")
+    ratios = (result.get("landmarks") or {}).get("proportions") or {}
+    if ratios:
+        lines.append("Proportions (front): " + " · ".join(f"{key} {value}" for key, value in ratios.items()))
     return "\n".join(lines)

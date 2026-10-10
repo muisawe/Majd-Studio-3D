@@ -26,6 +26,7 @@ from typing import Optional, Iterable
 
 from .atomic_io import atomic_write_json
 from .review_store import ReviewStoreMixin, initialize_review_schema
+from .landmark_store import LandmarkStoreMixin, initialize_landmark_schema
 from .library_store import LibraryStoreMixin, initialize_library_schema
 
 SCHEMA_VERSION = 99
@@ -52,7 +53,7 @@ class _ClosingConnection(sqlite3.Connection):
             self.close()
 
 
-class V9Store(ReviewStoreMixin, LibraryStoreMixin):
+class V9Store(ReviewStoreMixin, LibraryStoreMixin, LandmarkStoreMixin):
     def __init__(self, db_path: Path, projects_root: Path, library_root: Path):
         self.db_path = Path(db_path)
         self.projects_root = Path(projects_root)
@@ -345,6 +346,7 @@ class V9Store(ReviewStoreMixin, LibraryStoreMixin):
 
             initialize_review_schema(conn)
             initialize_library_schema(conn)
+            initialize_landmark_schema(conn)
             ensure_column("processing_batch_items", "review_candidate_id", "TEXT")
             conn.execute(
                 "INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version',?)",

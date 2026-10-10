@@ -122,7 +122,7 @@ def file_sha256(path) -> str:
     return digest.hexdigest()
 
 
-def generation_digest(row, style, style_refs, original_paths, use_calibrated) -> str:
+def generation_digest(row, style, style_refs, original_paths, use_calibrated, landmarks=None) -> str:
     """Hash of everything that makes a finished candidate reusable for this asset."""
     payload = {
         "engine": row["engine"], "steps": int(row["steps"]), "guidance": float(row["guidance"]),
@@ -132,6 +132,7 @@ def generation_digest(row, style, style_refs, original_paths, use_calibrated) ->
         "calibration": [bool(style["calibration_enabled"]), int(style["calibration_canvas"]),
                         float(style["target_occupancy"])] if style else None,
         "style_references": [[ref["id"], float(ref["weight"])] for ref in style_refs],
+        "landmarks": landmarks or {},
     }
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
 
@@ -245,6 +246,7 @@ class GenerationEngine:
             calibration_enabled=bool(style["calibration_enabled"]) if style else True,
             calibration_canvas=int(style["calibration_canvas"]) if style else 1024,
             target_occupancy=float(style["target_occupancy"]) if style else .82,
+            landmarks=self.store.landmarks_for_asset(row["id"]),
         )
         self.store.save_preflight(row["id"], result)
         return result
@@ -309,7 +311,8 @@ class GenerationEngine:
             raise RuntimeError("Front missing")
 
         style_refs = store.list_style_references(row["style_id"]) if row["style_id"] else []
-        digest = generation_digest(row, style, style_refs, original_paths, use_calibrated)
+        digest = generation_digest(row, style, style_refs, original_paths, use_calibrated,
+                                   store.landmarks_for_asset(aid))
         run_id = row["generation_run_id"]
         items = []
         candidate_metrics = []

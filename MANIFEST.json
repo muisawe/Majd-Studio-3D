@@ -1,6 +1,6 @@
 {
   "name": "Majd Studio 3D V9 Phase 2 Windows with GitHub Updates",
-  "version": "9.0.0-beta.6",
+  "version": "9.0.0-beta.7",
   "generated": "2026-10-10",
   "main_ui_port": 7864,
   "viewer_port": 7865,
@@ -32,13 +32,16 @@
     "atomic_file_writes",
     "daily_database_backups",
     "structured_logging",
-    "automated_release_publishing"
+    "automated_release_publishing",
+    "input_qa_phase_2_3",
+    "manual_character_landmarks",
+    "landmark_calibration"
   ],
   "files": [
     {
       "path": "README.md",
-      "bytes": 30558,
-      "sha256": "92888557cf574d50ff6f8c4ba4dbc7b7ed96541ffee01abe6479ab9b380bd64f"
+      "bytes": 31410,
+      "sha256": "010446ae6ac6df5874dd0bcd11404393638c69a113ce9045e20713c6881f1374"
     },
     {
       "path": "install.cmd",
@@ -62,8 +65,8 @@
     },
     {
       "path": "majd_studio_3d/app.py",
-      "bytes": 73316,
-      "sha256": "c105588168e78874b311e31925a98c6b19bcf455d23b4e767fc31bb57548eac0"
+      "bytes": 73512,
+      "sha256": "360716d600ee6ccbd96a7c357694f715211bc4a2fbe82aeca081814e4e8a9f2e"
     },
     {
       "path": "majd_studio_3d/asset_intake.py",
@@ -132,18 +135,33 @@
     },
     {
       "path": "majd_studio_3d/generation.py",
-      "bytes": 21649,
-      "sha256": "6fafe24b0a6265dc04ce4a57e57433466142fcc0c1acbf4dbcc40830c2634836"
+      "bytes": 21835,
+      "sha256": "bc3a151fe7f2aea928061b7d3b54a9703eaae711d2930b0edd19d0fb90053c2c"
     },
     {
       "path": "majd_studio_3d/input_qa.py",
-      "bytes": 12795,
-      "sha256": "025fcaff05d1021a7798439b3d038a5c9affd886adeb1610ff05c39dd03d81c6"
+      "bytes": 20830,
+      "sha256": "2588d4c75f84e0f10de041b5939f23f1d14067dae9e417ed9aa13ed4d55d174c"
     },
     {
       "path": "majd_studio_3d/instance_lock.py",
       "bytes": 914,
       "sha256": "5e30cadb5ec5a1a09197af1f2b5974effca7d5847d030a1dffbd3f96f5549f05"
+    },
+    {
+      "path": "majd_studio_3d/landmark_gradio.py",
+      "bytes": 4500,
+      "sha256": "8cb50c0903fc68f710fd70f5397e282c5a808531701b42fe204422572f06eca1"
+    },
+    {
+      "path": "majd_studio_3d/landmark_store.py",
+      "bytes": 2373,
+      "sha256": "a7fa37c78594c360e4178adba5ba32beac95c66155fe71f8fb033267169f1d8e"
+    },
+    {
+      "path": "majd_studio_3d/landmarks.py",
+      "bytes": 6322,
+      "sha256": "1df1e4a17c0dfcaf16086b37806fe4f39f2de7fd146d1f8dd524e177e611b037"
     },
     {
       "path": "majd_studio_3d/library_controller.py",
@@ -242,8 +260,8 @@
     },
     {
       "path": "majd_studio_3d/store.py",
-      "bytes": 93475,
-      "sha256": "fc2e52581ae63dd6bc98c35c8dc905317b8df16674fd6eb860a8fda851410c73"
+      "bytes": 93615,
+      "sha256": "27683a2099d7aee8273295c99aef9243e925f617fd3fd7e768c42731b657dc81"
     },
     {
       "path": "majd_studio_3d/updater.py",
@@ -277,8 +295,8 @@
     },
     {
       "path": "roadmap.md",
-      "bytes": 21765,
-      "sha256": "fc1b18429a3f412197f5edf91a91099842f9ac63f93df32a01619906ed687a31"
+      "bytes": 22396,
+      "sha256": "06d89e3145826b4e53570143ea5eafb08930a0ca5b556dd99d8e4ef5d89aad3e"
     },
     {
       "path": "scripts/install_windows.ps1",
@@ -298,7 +316,7 @@
     {
       "path": "version.json",
       "bytes": 32,
-      "sha256": "bcbceb4b7a649870c1e620f206dce79d2d422bbf0ea68939f5a67497c89dd46a"
+      "sha256": "65425c0acf3fd1ad99086db45a20b2402f934dbe34722e1c7b32ba5cbaf09f1d"
     },
     {
       "path": "viewer/viewer.css",

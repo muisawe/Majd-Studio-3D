@@ -23,6 +23,7 @@ from majd_studio_3d.review_controller import ReviewController
 from majd_studio_3d.viewer_publisher import ViewerPublisher
 from majd_studio_3d.review_gradio import mount_review_panel
 from majd_studio_3d.library_controller import LibraryController
+from majd_studio_3d.landmark_gradio import mount_landmark_panel
 from majd_studio_3d.library_gradio import mount_library_panel
 from tests import test_processing
 
@@ -57,6 +58,7 @@ def build_studio_ui(fixture):
     namespace["REVIEW_UI"] = ReviewController(store, namespace["BATCH_UI"])
     namespace["mount_review_panel"] = mount_review_panel
     namespace["LIBRARY_UI"] = LibraryController(store)
+    namespace["mount_landmark_panel"] = mount_landmark_panel
     namespace["mount_library_panel"] = mount_library_panel
     nodes = [ast.ImportFrom(module="__future__", names=[ast.alias(name="annotations")], level=0)]
     for node in source.body:

@@ -59,6 +59,7 @@ from .review_controller import ReviewController
 from .review_gradio import mount_review_panel
 from .library_controller import LibraryController
 from .library_gradio import mount_library_panel
+from .landmark_gradio import mount_landmark_panel
 from .generation import GenerationEngine, MV_READY, MV_ERROR
 from .viewer_publisher import ViewerPublisher
 from .asset_intake import AssetIntake
@@ -1031,6 +1032,8 @@ with gr.Blocks(title="Majd Studio 3D",css=CSS) as app:
                     import_btn=gr.Button("فحص وإضافة المجلد",variant="primary"); import_status=gr.Markdown()
                 with gr.Column(scale=3,elem_classes=["panel"]):
                     group_engine=gr.Checkbox(True,label="تجميع حسب المحرك"); start_batch_btn=gr.Button("بدء الدفعة",variant="primary",elem_id="start_batch"); stop_batch_btn=gr.Button("إيقاف بعد الأصل الحالي",variant="stop"); batch_status=gr.Markdown()
+
+            landmark_panel=mount_landmark_panel(STORE,current_project)
 
         with gr.Tab("المراجعة",id="review"):
             with gr.Row():
