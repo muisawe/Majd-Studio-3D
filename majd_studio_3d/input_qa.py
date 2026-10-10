@@ -118,6 +118,20 @@ def mask_signature(mask: np.ndarray) -> dict:
     }
 
 
+BLUR_VARIANCE_WARN = 3.0
+LOW_CONTRAST_STD = 8.0
+
+
+def sharpness(image: Image.Image, box) -> float:
+    """Variance of the Laplacian over the subject crop scaled to 512px tall; low means blurry."""
+    gray = image.convert("L").crop(tuple(box))
+    scale = 512 / max(gray.height, 1)
+    gray = gray.resize((max(3, int(gray.width * scale)), 512), Image.Resampling.BILINEAR)
+    g = np.asarray(gray, dtype=np.float32)
+    lap = -4 * g[1:-1, 1:-1] + g[:-2, 1:-1] + g[2:, 1:-1] + g[1:-1, :-2] + g[1:-1, 2:]
+    return float(lap.var())
+
+
 def analyze_image(path: str, view_name: str) -> dict:
     img = _rgba(path)
     w, h = img.size
@@ -127,10 +141,15 @@ def analyze_image(path: str, view_name: str) -> dict:
     issues = []
     status = "PASS"
     penalty = 0.0
+    # Detail close-ups are reference only: generation never uses them, so framing
+    # rules do not apply and nothing about them can block generation.
+    detail = view_name == "detail"
 
     def add(code, level, message, cost):
         nonlocal status, penalty
-        issues.append({"code":code, "level":level, "message":message})
+        if detail and level == "FAIL":
+            level = "WARN"
+        issues.append({"code":code, "level":level, "message":message, "view":view_name})
         penalty += cost
         if level == "FAIL": status = "FAIL"
         elif level == "WARN" and status == "PASS": status = "WARN"
@@ -139,6 +158,9 @@ def analyze_image(path: str, view_name: str) -> dict:
         add("resolution_low", "FAIL", f"{view_name}: {w}×{h} is too small.", 0.35)
     elif min(w, h) < 512:
         add("resolution_warn", "WARN", f"{view_name}: {w}×{h}; 512px+ is recommended.", 0.08)
+
+    if float(np.asarray(img.convert("L"), dtype=np.float32).std()) < LOW_CONTRAST_STD:
+        add("low_contrast", "WARN", f"{view_name}: image has very low contrast.", 0.08)
 
     if box is None or sig["height_ratio"] <= 0:
         add("subject_missing", "FAIL", f"{view_name}: subject could not be separated from background.", 0.55)
@@ -149,6 +171,15 @@ def analyze_image(path: str, view_name: str) -> dict:
         }
 
     x0, y0, x1, y1 = box
+    if sharpness(img, box) < BLUR_VARIANCE_WARN:
+        add("blurry", "WARN", f"{view_name}: image looks blurry.", 0.08)
+    if detail:
+        return {
+            "view":view_name, "path":str(path), "width":w, "height":h,
+            "status":status, "score":max(0.0, min(1.0, 1.0-penalty)), "issues":issues,
+            "bbox":[x0,y0,x1,y1], "signature":sig,
+        }
+
     margin = max(2, int(min(w, h) * 0.008))
     touches = []
     if x0 <= margin: touches.append("left")
@@ -165,15 +196,43 @@ def analyze_image(path: str, view_name: str) -> dict:
     if sig["height_ratio"] > 0.97 or sig["width_ratio"] > 0.97:
         add("framing_tight", "WARN", f"{view_name}: framing is very tight.", 0.08)
 
-    center_delta = abs(sig["cx"] - 0.5)
+    # Framing uses the subject's box, not its mass, so asymmetric poses are not flagged.
+    center_delta = abs((x0 + x1) / 2 / w - 0.5)
     if center_delta > 0.15:
         add("off_center", "WARN", f"{view_name}: horizontal center offset {center_delta*100:.1f}%.", 0.08)
+    vertical_delta = abs((y0 + y1) / 2 / h - 0.5)
+    if vertical_delta > 0.2:
+        add("off_center_vertical", "WARN", f"{view_name}: vertical center offset {vertical_delta*100:.1f}%.", 0.05)
 
     return {
         "view":view_name, "path":str(path), "width":w, "height":h,
         "status":status, "score":max(0.0, min(1.0, 1.0-penalty)), "issues":issues,
         "bbox":[x0,y0,x1,y1], "signature":sig,
     }
+
+
+MIRROR_PAIRS = (("front", "back"), ("left", "right"))
+GENERATION_KEYS = ("front", "back", "left", "right", "threeq")
+
+
+def _normalized_mask(path, size: int = 128):
+    """Subject mask cropped to its box and resized to a square, for silhouette comparisons."""
+    mask = estimate_subject_mask(path)
+    box = bbox(mask)
+    if not box:
+        return None
+    x0, y0, x1, y1 = box
+    crop = Image.fromarray(mask[y0:y1, x0:x1].astype(np.uint8) * 255).resize((size, size), Image.Resampling.BILINEAR)
+    return np.asarray(crop) > 127
+
+
+def _iou(a: np.ndarray, b: np.ndarray) -> float:
+    union = np.logical_or(a, b).sum()
+    return float(np.logical_and(a, b).sum() / union) if union else 0.0
+
+
+def _thumbnail(path) -> np.ndarray:
+    return np.asarray(_rgba(path).convert("L").resize((64, 64), Image.Resampling.BILINEAR), dtype=np.float32)
 
 
 def analyze_multiview(paths: dict[str, Optional[str]]) -> dict:
@@ -190,32 +249,60 @@ def analyze_multiview(paths: dict[str, Optional[str]]) -> dict:
         status = "FAIL"
     elif any(v["status"] == "WARN" for v in views.values()):
         status = "WARN"
+    consistency_penalty = 0.0
+
+    def add(code, level, message, cost, view=None):
+        nonlocal status, consistency_penalty
+        issues.append({"code":code, "level":level, "message":message, "view":view})
+        consistency_penalty += cost
+        if level == "FAIL": status = "FAIL"
+        elif level == "WARN" and status == "PASS": status = "WARN"
 
     # Multi-view scale consistency.
     ratios = {
         k: views[k]["signature"]["height_ratio"]
         for k in CARDINAL_KEYS if k in views and views[k]["bbox"] is not None
     }
-    consistency_penalty = 0.0
     if len(ratios) >= 2:
         median = float(np.median(list(ratios.values())))
         for key, val in ratios.items():
             if median <= 1e-8: continue
             delta = abs(val-median)/median
             if delta > 0.22:
-                issues.append({"code":"scale_mismatch","level":"FAIL","message":f"{key}: subject height differs {delta*100:.1f}% from view median."})
-                status = "FAIL"
-                consistency_penalty += 0.18
+                add("scale_mismatch", "FAIL", f"{key}: subject height differs {delta*100:.1f}% from view median.", 0.18, key)
             elif delta > 0.12:
-                issues.append({"code":"scale_mismatch","level":"WARN","message":f"{key}: subject height differs {delta*100:.1f}% from view median."})
-                if status == "PASS": status = "WARN"
-                consistency_penalty += 0.08
+                add("scale_mismatch", "WARN", f"{key}: subject height differs {delta*100:.1f}% from view median.", 0.08, key)
+
+    # The same picture in two generation slots is almost always an upload mistake.
+    present = [k for k in GENERATION_KEYS if k in views]
+    digests = {k: hashlib.sha256(Path(views[k]["path"]).read_bytes()).hexdigest() for k in present}
+    thumbnails = {}
+    for i, first in enumerate(present):
+        for second in present[i+1:]:
+            if digests[first] == digests[second]:
+                add("duplicate_view", "FAIL", f"{first} and {second} use the same image file.", 0.2, second)
+                continue
+            a = thumbnails.setdefault(first, _thumbnail(views[first]["path"]))
+            b = thumbnails.setdefault(second, _thumbnail(views[second]["path"]))
+            if float(np.abs(a - b).mean()) < 1.5:
+                add("duplicate_view", "WARN", f"{first} and {second} look identical.", 0.08, second)
+
+    # Opposite views show mirrored silhouettes; an unmirrored match suggests a flipped or swapped view.
+    for first, second in MIRROR_PAIRS:
+        if not (first in views and second in views and views[first]["bbox"] and views[second]["bbox"]):
+            continue
+        a, b = _normalized_mask(views[first]["path"]), _normalized_mask(views[second]["path"])
+        if a is None or b is None or 1.0 - _iou(a, np.fliplr(a)) < 0.08:
+            continue  # A symmetric silhouette cannot reveal orientation.
+        if _iou(a, b) - _iou(a, np.fliplr(b)) > 0.05:
+            add("mirror_mismatch", "WARN",
+                f"{first}/{second}: silhouettes match without mirroring; one view may be flipped or mislabeled.", 0.05, second)
 
     base_score = float(np.mean([v["score"] for v in views.values()])) if views else 0.0
     score = max(0.0, min(1.0, base_score-consistency_penalty))
     if not views:
         status, score = "FAIL", 0.0
-        issues.append({"code":"no_images","level":"FAIL","message":"No valid input images found."})
+        issues.append({"code":"no_images","level":"FAIL","message":"No valid input images found.","view":None})
 
     return {
         "status":status,
@@ -226,7 +313,17 @@ def analyze_multiview(paths: dict[str, Optional[str]]) -> dict:
     }
 
 
-def calibrate_image(path: str, destination: str, canvas: int = 1024, target_occupancy: float = 0.82) -> dict:
+def _target_height(canvas: int, target_occupancy: float) -> int:
+    return max(16, int(canvas * max(0.25, min(float(target_occupancy), 0.94))))
+
+
+def calibrate_image(path: str, destination: str, canvas: int = 1024, target_occupancy: float = 0.82,
+                    target_height: Optional[int] = None) -> dict:
+    """Place the subject on a square canvas, feet on a common baseline.
+
+    The PNG keeps the subject mask as alpha; transparent pixels are white, so
+    tools that drop alpha still see a white background.
+    """
     image = _rgba(path)
     mask = estimate_subject_mask(image)
     box = bbox(mask)
@@ -238,7 +335,7 @@ def calibrate_image(path: str, destination: str, canvas: int = 1024, target_occu
     rgba[:,:,3] = mask.astype(np.uint8) * 255
     subject = Image.fromarray(rgba, "RGBA").crop((x0,y0,x1,y1))
 
-    target_h = max(16, int(canvas * max(0.25, min(float(target_occupancy), 0.94))))
+    target_h = int(target_height) if target_height else _target_height(canvas, target_occupancy)
     scale = target_h/max(subject.height, 1)
     tw = max(1, int(subject.width*scale)); th=max(1,int(subject.height*scale))
     max_w = int(canvas*0.90)
@@ -247,14 +344,29 @@ def calibrate_image(path: str, destination: str, canvas: int = 1024, target_occu
         tw=max(1,int(subject.width*scale)); th=max(1,int(subject.height*scale))
 
     subject = subject.resize((tw,th), Image.Resampling.LANCZOS)
-    out = Image.new("RGBA", (canvas,canvas), (255,255,255,255))
     x=(canvas-tw)//2
     baseline=int(canvas*0.94)
     y=max(0,baseline-th)
+    out = Image.new("RGBA", (canvas,canvas), (255,255,255,255))
     out.alpha_composite(subject,(x,y))
+    alpha = Image.new("L", (canvas,canvas), 0)
+    alpha.paste(subject.getchannel("A"), (x,y))
+    out.putalpha(alpha)
 
     dst=Path(destination); dst.parent.mkdir(parents=True,exist_ok=True); out.save(dst,"PNG")
     return {"path":str(dst),"canvas":canvas,"x":x,"y":y,"width":tw,"height":th}
+
+
+def shared_target_height(report: dict, canvas: int, target_occupancy: float) -> int:
+    """One subject height for every generation view, small enough that the widest still fits."""
+    height = _target_height(canvas, target_occupancy)
+    max_w = int(canvas * 0.90)
+    for key in GENERATION_KEYS:
+        box = (report["views"].get(key) or {}).get("bbox")
+        if box:
+            width, tall = max(1, box[2]-box[0]), max(1, box[3]-box[1])
+            height = min(height, int(max_w * tall / width))
+    return max(16, height)
 
 
 def run_preflight(
@@ -268,12 +380,14 @@ def run_preflight(
     calibrated = {}
     if report["status"] != "FAIL" and calibration_enabled:
         out = Path(output_dir); out.mkdir(parents=True,exist_ok=True)
-        for key in VIEW_KEYS:
+        height = shared_target_height(report, int(calibration_canvas), float(target_occupancy))
+        # Detail close-ups are not generation inputs, so they are not calibrated.
+        for key in GENERATION_KEYS:
             p=paths.get(key)
             if p and Path(p).is_file():
                 calibrated[key]=calibrate_image(
                     p, str(out/f"{key}.png"),
-                    canvas=int(calibration_canvas), target_occupancy=float(target_occupancy)
+                    canvas=int(calibration_canvas), target_occupancy=float(target_occupancy), target_height=height,
                 )
         atomic_write_json(out/"calibration.json",calibrated)
 
@@ -294,6 +408,25 @@ def generation_paths(original_paths: dict[str, Optional[str]], preflight_result:
         p=(calibrated.get(key) or {}).get("path")
         out[key]=p if p and Path(p).is_file() else original_paths.get(key)
     return out
+
+
+def cleanup_preview_dirs(root, max_age_days: float = 7) -> int:
+    """Delete preview calibration folders older than max_age_days; returns how many were removed."""
+    import shutil
+    import time
+    root = Path(root)
+    if not root.is_dir():
+        return 0
+    cutoff = time.time() - max_age_days * 86400
+    removed = 0
+    for folder in root.iterdir():
+        try:
+            if folder.is_dir() and folder.stat().st_mtime < cutoff:
+                shutil.rmtree(folder)
+                removed += 1
+        except OSError:
+            continue
+    return removed
 
 
 def _signature_distance(a: dict,b: dict) -> float:

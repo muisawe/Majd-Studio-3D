@@ -48,7 +48,7 @@ import gradio as gr
 from .store import V9Store, SCHEMA_VERSION
 from .db_backup import backup_database
 from .instance_lock import acquire_instance_lock
-from .input_qa import run_preflight, format_report
+from .input_qa import cleanup_preview_dirs, run_preflight, format_report
 from .model_manager import ModelManager, MODEL_SPECS, DownloadCancelled
 from .parts import PartsService, part_file
 from .processing_controller import ProcessingController
@@ -101,6 +101,7 @@ BATCH_UI = BatchController(APP_DIR, STORE, PROCESSING_UI, GPU_TASK_LOCK)
 REVIEW_UI = ReviewController(STORE, BATCH_UI)
 LIBRARY_UI = LibraryController(STORE)
 LIBRARY_UI.start_integrity_scan()
+cleanup_preview_dirs(APP_DIR / "preflight_preview")
 REVIEW_UI.initialize()
 REVIEW_UI.service.prepare_approval = lambda asset,candidate: prepare_review_approval(asset,candidate)
 
