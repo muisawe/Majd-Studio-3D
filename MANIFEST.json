@@ -1,7 +1,7 @@
 {
   "name": "Majd Studio 3D V9 Phase 2 Windows with GitHub Updates",
-  "version": "9.0.0-beta.5",
-  "generated": "2026-10-03",
+  "version": "9.0.0-beta.6",
+  "generated": "2026-10-10",
   "main_ui_port": 7864,
   "viewer_port": 7865,
   "features": [
@@ -26,18 +26,24 @@
     "resumable_model_downloads",
     "p3sam_segmentation",
     "xpart_reconstruction",
-    "part_library_approval"
+    "part_library_approval",
+    "generation_crash_recovery",
+    "generation_resume",
+    "atomic_file_writes",
+    "daily_database_backups",
+    "structured_logging",
+    "automated_release_publishing"
   ],
   "files": [
     {
       "path": "README.md",
-      "bytes": 10338,
-      "sha256": "262e4728003751cd6055662d02993594c811adeb3d9fab80e219590076da8083"
+      "bytes": 30558,
+      "sha256": "92888557cf574d50ff6f8c4ba4dbc7b7ed96541ffee01abe6479ab9b380bd64f"
     },
     {
       "path": "install.cmd",
-      "bytes": 191,
-      "sha256": "3b40ecfcc7640d53f600f1a1d44955ebcbd1406d17b1c58a5cd81a6e80976ab6"
+      "bytes": 199,
+      "sha256": "dab168955922bf77a452f7f5151acecbed83e6a504e59b8e18eb3553f4e815ac"
     },
     {
       "path": "install_v9.ps1",
@@ -56,23 +62,128 @@
     },
     {
       "path": "majd_studio_3d/app.py",
-      "bytes": 89992,
-      "sha256": "331883190d149be0e9977b802511798dd7d40c46b9311097e595a4682cb3d8ec"
+      "bytes": 73316,
+      "sha256": "c105588168e78874b311e31925a98c6b19bcf455d23b4e767fc31bb57548eac0"
+    },
+    {
+      "path": "majd_studio_3d/asset_intake.py",
+      "bytes": 5979,
+      "sha256": "860336bec03d5919ba98563536b2d100cf51963c6efb382a2101a73aa22e9988"
+    },
+    {
+      "path": "majd_studio_3d/atomic_io.py",
+      "bytes": 2425,
+      "sha256": "04bb0899b1aeee5f7f5e3e802b490fb5895de0cc89632f3d29af42d6def93ed7"
+    },
+    {
+      "path": "majd_studio_3d/batch_controller.py",
+      "bytes": 6473,
+      "sha256": "aca48cda9eecabb70b4c956a72da7560747cb7a358c7a6e3d3a66f20ed75c39f"
+    },
+    {
+      "path": "majd_studio_3d/batch_gradio.py",
+      "bytes": 9615,
+      "sha256": "3bf35d4d820fc7614ff7d75af1284aae1c9040a3e7ae73e1eef5ddc0e80f8770"
+    },
+    {
+      "path": "majd_studio_3d/batch_processing.py",
+      "bytes": 10883,
+      "sha256": "fd8c7459c69eec86a1ee22537d172494885cd314075dab8d47a528b6b7623108"
+    },
+    {
+      "path": "majd_studio_3d/batch_ui.py",
+      "bytes": 4496,
+      "sha256": "555f7ab22bf53c984169e342ad8657dad35384bfc9ce98402683a0d395ee1052"
+    },
+    {
+      "path": "majd_studio_3d/blender_finalize.py",
+      "bytes": 3543,
+      "sha256": "61dd9847db1a775e789707af7615bab812aa9ab2b9d975f9333088f1fccd6e6c"
+    },
+    {
+      "path": "majd_studio_3d/candidate_qa.py",
+      "bytes": 2625,
+      "sha256": "f69e4f03829f6ece3404260b2507cfe1afab8aa8f0b79b81c01d685d9eb77bfd"
+    },
+    {
+      "path": "majd_studio_3d/cleanup.py",
+      "bytes": 14599,
+      "sha256": "0e7e5a5a4a5b80a6e80f4da5224f18f8ac4a7bf73c139bdc427b89439f479f46"
+    },
+    {
+      "path": "majd_studio_3d/cleanup_config.py",
+      "bytes": 3384,
+      "sha256": "142ecf5e9c719fe18c58c863f691c0ac6bab6c9fa2612e40c8d54699c2800b44"
+    },
+    {
+      "path": "majd_studio_3d/cleanup_worker.py",
+      "bytes": 14524,
+      "sha256": "c8225eb161c6a7f6be3ddeaa8768222977d98dd50fdaff9b5872f6c1d6c96065"
+    },
+    {
+      "path": "majd_studio_3d/constants.py",
+      "bytes": 347,
+      "sha256": "ffc20628c90a003f0df0f1e542d060bbbccfa754c445b4f92f3532bb98668503"
+    },
+    {
+      "path": "majd_studio_3d/db_backup.py",
+      "bytes": 2865,
+      "sha256": "9ea0f378c27b16136becb5c1a343e9c95d80cf0d3dcc1c4f43b013e579523625"
+    },
+    {
+      "path": "majd_studio_3d/generation.py",
+      "bytes": 21649,
+      "sha256": "6fafe24b0a6265dc04ce4a57e57433466142fcc0c1acbf4dbcc40830c2634836"
     },
     {
       "path": "majd_studio_3d/input_qa.py",
-      "bytes": 12817,
-      "sha256": "bdd034e3d84528c53ad8aa757a12b2ab5d50ccb254773811a4de6ce3b02aa587"
+      "bytes": 12795,
+      "sha256": "025fcaff05d1021a7798439b3d038a5c9affd886adeb1610ff05c39dd03d81c6"
+    },
+    {
+      "path": "majd_studio_3d/instance_lock.py",
+      "bytes": 914,
+      "sha256": "5e30cadb5ec5a1a09197af1f2b5974effca7d5847d030a1dffbd3f96f5549f05"
+    },
+    {
+      "path": "majd_studio_3d/library_controller.py",
+      "bytes": 8263,
+      "sha256": "955f092a1a07434038c93e9b2825c019039e16e4e135aea86d42da03d1c3c8dd"
+    },
+    {
+      "path": "majd_studio_3d/library_gradio.py",
+      "bytes": 11862,
+      "sha256": "805e88f490062959647c28253fb7efdac5f098d6fef95a1825fbb314525cee78"
+    },
+    {
+      "path": "majd_studio_3d/library_service.py",
+      "bytes": 2880,
+      "sha256": "3bcc9316bfcf7c2946b53b023759f5d3adf480672006a7e3a2653fff38f7ad12"
+    },
+    {
+      "path": "majd_studio_3d/library_store.py",
+      "bytes": 26854,
+      "sha256": "df01a99edef00cc323f83434df34011570661cf694285f4dac5724f615cebd49"
+    },
+    {
+      "path": "majd_studio_3d/library_ui.py",
+      "bytes": 5382,
+      "sha256": "01091504b2c5f7200e1f4592a9c45b334f4ad4846c22ccc88d003f987c7e6091"
+    },
+    {
+      "path": "majd_studio_3d/logging_setup.py",
+      "bytes": 3736,
+      "sha256": "7dba6db080d8d951ab836ae8918e4f369de69a47f1ce143be6091c43e6e23462"
     },
     {
       "path": "majd_studio_3d/model_manager.py",
-      "bytes": 15026,
-      "sha256": "dbde284181abfea887a619300bba456553084bef1b2acc10064da939fb015c06"
+      "bytes": 14915,
+      "sha256": "f87c479f2dcad82e8c92afd013cb12fd68c3c7bbe8a977e5695bcf689684e3cd"
     },
     {
       "path": "majd_studio_3d/parts.py",
-      "bytes": 10476,
-      "sha256": "1037d5ce21681932b5b61f55b194985ed0a7f3903ff2214074c69dc155ed2957"
+      "bytes": 11006,
+      "sha256": "be32646df6e3e15be03c2e5c08cd2ebcbb68f15129e8fd32ab4d73c88459fc02"
     },
     {
       "path": "majd_studio_3d/parts_worker.py",
@@ -80,19 +191,74 @@
       "sha256": "e13357acba54e36e93b5a97772d8c6b38d3d186171ee157e2259943cab30bb46"
     },
     {
+      "path": "majd_studio_3d/processing.py",
+      "bytes": 27550,
+      "sha256": "b2acf3842817aba5c245265ebbb5a89df9a45d5624667d51dcf7922cb86845ab"
+    },
+    {
+      "path": "majd_studio_3d/processing_controller.py",
+      "bytes": 14648,
+      "sha256": "15ab4b9872eddf2a82d27a4cc57b10b2c9348cac9a6e34f92c66926fc77ca38d"
+    },
+    {
+      "path": "majd_studio_3d/processing_gradio.py",
+      "bytes": 5877,
+      "sha256": "3613718432d0242e27342d3d692d5fb28a1777dfea2d193d75e79e8638baa432"
+    },
+    {
+      "path": "majd_studio_3d/processing_ui.py",
+      "bytes": 9846,
+      "sha256": "b9f46a0dc7898c0efbf82d510326591b5b7c3aef52933c69a9a56c876bd4aa55"
+    },
+    {
+      "path": "majd_studio_3d/reduction_worker.py",
+      "bytes": 6890,
+      "sha256": "d166c6efbb8cc45c791afa85365880abd1f91a8cc42f5a4b7c247d39fcef00d5"
+    },
+    {
+      "path": "majd_studio_3d/review_controller.py",
+      "bytes": 7355,
+      "sha256": "ee4866ca34150cc56eea3674f37b6c6c9043f912f5cd983c88e86da3d852bf81"
+    },
+    {
+      "path": "majd_studio_3d/review_gradio.py",
+      "bytes": 8494,
+      "sha256": "47e1fea28adb59abaf4ec91417a8f6b0cd4c7ed451bfbd860e1dbe5d854dc4e1"
+    },
+    {
+      "path": "majd_studio_3d/review_service.py",
+      "bytes": 8743,
+      "sha256": "8fc1dfb005901422847642f13d5dd3aca5dbfc0ba0a61d1bfcee9863add9efc7"
+    },
+    {
+      "path": "majd_studio_3d/review_store.py",
+      "bytes": 22711,
+      "sha256": "85502844955ecf555ad559bde19ceaa6737ef63d4aa71be91136490af09eb25e"
+    },
+    {
+      "path": "majd_studio_3d/review_ui.py",
+      "bytes": 6109,
+      "sha256": "5b67ff45eeeaded5320badf2ccf6b544a9e99d9a6288ccdc8e1dbb741b3bd777"
+    },
+    {
       "path": "majd_studio_3d/store.py",
-      "bytes": 46230,
-      "sha256": "2ad47fcfaee05f9ae95c9fb6a06e399683438ed69411a3c6fc8fa4d855ff3345"
+      "bytes": 93475,
+      "sha256": "fc2e52581ae63dd6bc98c35c8dc905317b8df16674fd6eb860a8fda851410c73"
     },
     {
       "path": "majd_studio_3d/updater.py",
-      "bytes": 18144,
-      "sha256": "336e73fb9c651cb1355d07caed97b7aa7666540d62a6c12329d91b243e90d7dd"
+      "bytes": 19274,
+      "sha256": "b8b208af5ab8ab1c13e3716c085c1a38d8bcdb89cc5517604a012e63e3ed7a3b"
     },
     {
       "path": "majd_studio_3d/verified_model_metadata.py",
       "bytes": 4808,
       "sha256": "997cb4ef88e72485836f74503776f1acf8849bd0ec7bfc8cf0e705da9107ff3a"
+    },
+    {
+      "path": "majd_studio_3d/viewer_publisher.py",
+      "bytes": 6389,
+      "sha256": "b43b51f1cbccb9cc0e2604e903d005ad52aa06cfbb3326f4b880cf58c62e6edc"
     },
     {
       "path": "majd_studio_3d_v9.py",
@@ -116,13 +282,13 @@
     },
     {
       "path": "scripts/install_windows.ps1",
-      "bytes": 9418,
-      "sha256": "f86c3d031fcfdcc2199255d730ee1a839301ab8f93d561fdf6beaf8f11784e06"
+      "bytes": 9563,
+      "sha256": "cd79f5aa53cd1ab3d8e97a752111e92f37bd19c258161369f7faf969df6e173e"
     },
     {
       "path": "scripts/launch_windows.ps1",
-      "bytes": 4294,
-      "sha256": "1056ac699ef5dfbbba56fc66a9ba500ab5e46260273660b5e2a7cfab9f892aea"
+      "bytes": 5950,
+      "sha256": "77e8476bda7b899d8e2b029c2167bbc15cd64c44a3324fd6a04d9174f8c480c3"
     },
     {
       "path": "update_config.json",
@@ -132,7 +298,7 @@
     {
       "path": "version.json",
       "bytes": 32,
-      "sha256": "db3810282cbc3da733769e0e48b84324f16e0914088e59e7158f304aae56e60d"
+      "sha256": "bcbceb4b7a649870c1e620f206dce79d2d422bbf0ea68939f5a67497c89dd46a"
     },
     {
       "path": "viewer/viewer.css",
@@ -146,8 +312,8 @@
     },
     {
       "path": "viewer/viewer.js",
-      "bytes": 8543,
-      "sha256": "e1dfcc7302e833a9993a82c5396b4ac3501bf5d9856ae9669b0dd49adcc82ac0"
+      "bytes": 8555,
+      "sha256": "8ed2919818135943772bb2283d8812d22613ee1146e009b1fe5a95d0c5731c08"
     }
   ]
 }
