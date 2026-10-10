@@ -8,9 +8,15 @@ if ($LASTEXITCODE -ne 0) { throw "venv creation failed" }
 
 . (Join-Path $PSScriptRoot "..\..\scripts\launch_windows.ps1")
 
-# Stand-in studio started exactly like the launcher starts the real one.
-$server = Start-Process -FilePath $pythonw -ArgumentList "-m http.server 7864 --bind 127.0.0.1" `
-    -WorkingDirectory $root -WindowStyle Hidden -PassThru
+# Stand-in studio started exactly like the launcher starts the real one. pythonw has no
+# stderr, so the stand-in silences http.server's request logging like the studio does.
+$standIn = Join-Path $root "stand_in.py"
+Set-Content -Path $standIn -Encoding ASCII -Value @(
+    "import http.server, io, sys",
+    "sys.stdout = sys.stderr = io.StringIO()",
+    "http.server.ThreadingHTTPServer(('127.0.0.1', 7864), http.server.SimpleHTTPRequestHandler).serve_forever()"
+)
+$server = Start-Process -FilePath $pythonw -ArgumentList "`"$standIn`"" -WorkingDirectory $root -WindowStyle Hidden -PassThru
 try {
     Start-Sleep -Seconds 5
     Write-Host "Launcher process $($server.Id) exited: $($server.HasExited)"
