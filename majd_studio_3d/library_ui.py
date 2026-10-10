@@ -38,6 +38,8 @@ def render_counters(counts):
     labels = (("active_assets", "Active Assets"), ("archived_assets", "Archived Assets"),
               ("total_versions", "Total Versions"), ("unassigned_approved_results", "Unassigned Approved Results"),
               ("recently_updated", "Recently Updated"))
+    if counts.get("integrity_issues"):
+        labels += (("integrity_issues", "Integrity Issues (see v9.log)"),)
     return '<style>.library-counters{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:12px 0}.library-counters div{border:1px solid #303640;border-radius:8px;padding:10px}.library-counters span{display:block;color:#a1adbc}.library-counters strong{font-size:20px}</style><div class="library-counters">' + ''.join(
         f'<div><span>{label}</span><strong>{_html(counts.get(key, 0))}</strong></div>' for key, label in labels) + '</div>'
 

@@ -2,6 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from majd_studio_3d.viewer_publisher import ViewerPublisher
 
@@ -52,6 +53,23 @@ class ViewerPublisherTests(unittest.TestCase):
         self.viewer.publish(None)
         self.assertEqual(self.state()["models"], [])
         self.assertEqual([p.name for p in self.viewer.data.iterdir()], ["state.json"])
+
+    def test_republish_keeps_only_files_the_new_state_references(self):
+        self.viewer.publish(self.row())
+        self.viewer.publish(self.row(), selected_index=1)
+        state = self.state()
+        referenced = {model["url"].split("/")[1] for model in state["models"]}
+        self.assertEqual({p.name for p in self.viewer.data.iterdir()} - {"state.json"}, referenced)
+
+    def test_failed_copy_leaves_previous_state_and_models_intact(self):
+        self.viewer.publish(self.row())
+        before = self.state()
+        with patch("majd_studio_3d.viewer_publisher.shutil.copy2", side_effect=OSError("disk full")):
+            with self.assertRaises(OSError):
+                self.viewer.publish(self.row(), selected_index=1)
+        self.assertEqual(self.state(), before)
+        for model in before["models"]:
+            self.assertTrue((self.viewer.data / model["url"].split("/")[1]).exists())
 
     def test_candidate_list_ignores_invalid_json(self):
         self.assertEqual(ViewerPublisher.candidate_list({"candidates_json": "{"}), [])

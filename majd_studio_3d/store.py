@@ -24,10 +24,11 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional, Iterable
 
+from .atomic_io import atomic_write_json
 from .review_store import ReviewStoreMixin, initialize_review_schema
 from .library_store import LibraryStoreMixin, initialize_library_schema
 
-SCHEMA_VERSION = 98
+SCHEMA_VERSION = 99
 
 
 def utcnow() -> str:
@@ -335,6 +336,12 @@ class V9Store(ReviewStoreMixin, LibraryStoreMixin):
             ensure_column("assets", "preflight_status", "TEXT NOT NULL DEFAULT 'NOT_RUN'")
             ensure_column("assets", "preflight_score", "REAL")
             ensure_column("assets", "use_calibrated", "INTEGER NOT NULL DEFAULT 1")
+            # Schema 99: generation ownership, resumable runs and failure classification.
+            ensure_column("assets", "generation_run_id", "TEXT")
+            ensure_column("assets", "generation_owner", "TEXT")
+            ensure_column("assets", "generation_owner_pid", "INTEGER")
+            ensure_column("assets", "failure_kind", "TEXT")
+            ensure_column("assets", "generation_metrics_json", "TEXT")
 
             initialize_review_schema(conn)
             initialize_library_schema(conn)
@@ -622,6 +629,82 @@ class V9Store(ReviewStoreMixin, LibraryStoreMixin):
             conn.execute(sql, list(fields.values()) + [asset_id])
             conn.commit()
 
+    # ------------------------------------------------------------------
+    # Generation claims: pending|failed -> processing -> review|failed|pending
+    # ------------------------------------------------------------------
+
+    def claim_asset_generation(self, asset_id: str, token: str, pid: int):
+        """Move a ready pending/failed asset to processing for one owner; None when it is not claimable.
+
+        The run id survives failures and interruptions so finished candidates can be
+        reused; it is created here when the asset starts a fresh generation.
+        """
+        with self.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT * FROM assets WHERE id=?", (asset_id,)).fetchone()
+            if (not row or row["status"] not in ("pending", "failed")
+                    or row["engine"] not in ("2.1", "2mv") or not row["front_path"]):
+                conn.rollback()
+                return None
+            conn.execute(
+                """UPDATE assets SET status='processing',generation_owner=?,generation_owner_pid=?,
+                   generation_run_id=?,failure_kind=NULL,updated_at=? WHERE id=?""",
+                (token, pid, row["generation_run_id"] or uuid.uuid4().hex, utcnow(), asset_id),
+            )
+            row = conn.execute("SELECT * FROM assets WHERE id=?", (asset_id,)).fetchone()
+            conn.commit()
+            return row
+
+    def finish_asset_generation(self, asset_id: str, token: str, status: str, **fields) -> bool:
+        """Record the end of a claimed generation; ignored unless `token` still owns the claim."""
+        if status not in ("review", "failed", "pending"):
+            raise ValueError(f"Unsupported generation result: {status}")
+        fields.update(status=status, generation_owner=None, generation_owner_pid=None, updated_at=utcnow())
+        if status == "review":
+            fields["generation_run_id"] = None
+        sql = ("UPDATE assets SET " + ",".join(f"{k}=?" for k in fields)
+               + " WHERE id=? AND status='processing' AND generation_owner=?")
+        with self.connect() as conn:
+            changed = conn.execute(sql, [*fields.values(), asset_id, token]).rowcount
+            conn.commit()
+        return changed == 1
+
+    def recover_interrupted_generations(self, is_alive) -> list[str]:
+        """Mark processing assets whose owner is gone as failed/interrupted, keeping their run id."""
+        with self.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            rows = conn.execute(
+                "SELECT id,generation_owner,generation_owner_pid FROM assets WHERE status='processing'").fetchall()
+            stale = [row["id"] for row in rows if not is_alive(row["generation_owner"], row["generation_owner_pid"])]
+            for asset_id in stale:
+                conn.execute(
+                    """UPDATE assets SET status='failed',failure_kind='interrupted',progress=0,
+                       generation_owner=NULL,generation_owner_pid=NULL,message=?,updated_at=?
+                       WHERE id=? AND status='processing'""",
+                    ("انقطع التوليد قبل اكتماله؛ تشغيل الدفعة يستأنف من آخر Candidate محفوظ", utcnow(), asset_id),
+                )
+            conn.commit()
+        return stale
+
+    def requeue_asset_generation(self, asset_id: str, message: str) -> None:
+        """Return an idle asset to pending for a fresh generation; approved versions are untouched."""
+        with self.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT status FROM assets WHERE id=?", (asset_id,)).fetchone()
+            if not row:
+                raise ValueError("Asset not found")
+            if row["status"] == "processing":
+                raise ValueError("التوليد جارٍ لهذا الأصل؛ انتظر انتهاءه أو أوقف الدفعة أولًا.")
+            if conn.execute("SELECT 1 FROM processing_batch_items WHERE asset_id=? AND status='processing' LIMIT 1",
+                            (asset_id,)).fetchone():
+                raise ValueError("أوقف معالجة الأصل قبل إعادة التوليد.")
+            conn.execute(
+                """UPDATE assets SET status='pending',progress=0,candidates_json=NULL,best_glb=NULL,best_score=NULL,
+                   generation_run_id=NULL,failure_kind=NULL,message=?,updated_at=? WHERE id=?""",
+                (message, utcnow(), asset_id),
+            )
+            conn.commit()
+
     def update_processing_review(self, asset_id, expected_candidates, candidates, best_glb, source_matches):
         """Apply one review result atomically without changing approved versions.
 
@@ -736,7 +819,7 @@ class V9Store(ReviewStoreMixin, LibraryStoreMixin):
             "style_lock_result": style_lock_result,
             "style_lock_notes": style_lock_notes,
         })
-        manifest_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        atomic_write_json(manifest_path, payload)
 
         vid = uuid.uuid4().hex[:12]
         with self.connect() as conn:

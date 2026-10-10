@@ -7,6 +7,8 @@ import shutil
 import uuid
 from pathlib import Path
 
+from .atomic_io import atomic_write_text
+
 REVIEW_STATES = ('NEEDS_REVIEW', 'APPROVED', 'REJECTED', 'RETRY_REQUESTED')
 
 
@@ -160,9 +162,9 @@ class ReviewStoreMixin:
                         else:
                             artifacts[name] = str(frozen)
                 if raw and Path(raw).is_file():
-                    (freeze_dir / 'raw_source.json').write_text(_json({'kind': 'majd_raw_snapshot', 'version': 1,
+                    atomic_write_text(freeze_dir / 'raw_source.json', _json({'kind': 'majd_raw_snapshot', 'version': 1,
                         'raw_asset': processing.get('raw_asset') or candidate.get('raw_glb') or candidate.get('glb'),
-                        'raw_snapshot': raw, 'raw_sha256': hashlib.sha256(Path(raw).read_bytes()).hexdigest()}), encoding='utf-8')
+                        'raw_snapshot': raw, 'raw_sha256': hashlib.sha256(Path(raw).read_bytes()).hexdigest()}))
                 stored_metadata = {**candidate, 'candidate_index': candidate.get('candidate_index', rank - 1)}
                 conn.execute('''INSERT OR IGNORE INTO review_candidates(id,asset_id,candidate_number,rank,score,
                     processing_run_id,processing_status,raw_source,metadata_json,config_snapshot_json,
@@ -276,8 +278,8 @@ class ReviewStoreMixin:
                         thumbnail = folder / 'thumbnail.png'
                         shutil.copy2(artifacts['thumbnail'], thumbnail)
                     manifest = folder / 'manifest.json'
-                    manifest.write_text(_json({'asset_id': asset_id, 'version': number, 'candidate_id': candidate['id'],
-                                              'candidate_snapshot': dict(candidate), 'created_at': _now()}), encoding='utf-8')
+                    atomic_write_text(manifest, _json({'asset_id': asset_id, 'version': number, 'candidate_id': candidate['id'],
+                                                      'candidate_snapshot': dict(candidate), 'created_at': _now()}))
                     conn.execute('''INSERT INTO asset_versions(id,asset_id,version_number,style_id,approved_candidate,
                         score,style_lock_result,style_lock_notes,glb_path,blend_path,thumbnail_path,manifest_path,created_at)
                         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)''', (version_id, asset_id, number, asset['style_id'], candidate['candidate_number'],

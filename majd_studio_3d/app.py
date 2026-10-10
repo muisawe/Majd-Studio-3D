@@ -31,6 +31,10 @@ from pathlib import Path
 from datetime import datetime
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# Before torch/gradio: pythonw has no console, so early import errors must reach the log.
+from .logging_setup import configure_logging
+LOG = configure_logging(ROOT / "majd_v9" / "logs")
 MV_REPO = Path(os.environ.get("MAJD_MV_REPO") or r"E:\AI\Hunyuan3D-2-MV")
 
 sys.path.insert(0, str(ROOT))
@@ -41,7 +45,9 @@ if MV_REPO.exists():
 import torch
 import gradio as gr
 
-from .store import V9Store
+from .store import V9Store, SCHEMA_VERSION
+from .db_backup import backup_database
+from .instance_lock import acquire_instance_lock
 from .input_qa import run_preflight, format_report
 from .model_manager import ModelManager, MODEL_SPECS, DownloadCancelled
 from .parts import PartsService, part_file
@@ -68,7 +74,6 @@ PROJECTS_DIR = APP_DIR / "projects"
 LIBRARY_DIR = APP_DIR / "library"
 LOG_DIR = APP_DIR / "logs"
 DB_PATH = APP_DIR / "majd_v9.sqlite3"
-LOG_PATH = LOG_DIR / "v9.log"
 
 VIEWER_ROOT = ROOT / "majd_viewer_v9"
 VIEWER_DATA = VIEWER_ROOT / "data"
@@ -78,7 +83,15 @@ VIEWER_PORT = 7865
 for p in (APP_DIR, PROJECTS_DIR, LIBRARY_DIR, LOG_DIR, VIEWER_DATA):
     p.mkdir(parents=True, exist_ok=True)
 
+# Snapshot before V9Store runs migrations; the lock proves no other studio uses this data.
+backup_database(DB_PATH, APP_DIR / "backups" / "db", SCHEMA_VERSION)
+INSTANCE_LOCK = acquire_instance_lock(APP_DIR / "studio.lock")
 STORE = V9Store(DB_PATH, PROJECTS_DIR, LIBRARY_DIR)
+if INSTANCE_LOCK is None:
+    LOG.warning("Another Majd Studio instance holds %s; skipping generation recovery", APP_DIR / "studio.lock")
+else:
+    for _asset_id in STORE.recover_interrupted_generations(lambda token, pid: False):
+        LOG.warning("Recovered interrupted generation for asset %s", _asset_id)
 MODEL_MANAGER = ModelManager(APP_DIR / "models")
 PARTS_SERVICE = PartsService(APP_DIR, MODEL_MANAGER)
 PROCESSING_UI = ProcessingController(APP_DIR, STORE)
@@ -87,15 +100,12 @@ GPU_TASK_LOCK = threading.Lock()
 BATCH_UI = BatchController(APP_DIR, STORE, PROCESSING_UI, GPU_TASK_LOCK)
 REVIEW_UI = ReviewController(STORE, BATCH_UI)
 LIBRARY_UI = LibraryController(STORE)
+LIBRARY_UI.start_integrity_scan()
 REVIEW_UI.initialize()
 REVIEW_UI.service.prepare_approval = lambda asset,candidate: prepare_review_approval(asset,candidate)
 
-_log = open(LOG_PATH, "a", encoding="utf-8", buffering=1)
-sys.stdout = _log
-sys.stderr = _log
-print("\n" + "=" * 96)
-print("Majd Studio 3D V9", datetime.now().isoformat())
-print("=" * 96)
+LOG.info("=" * 96)
+LOG.info("Majd Studio 3D V9 %s", datetime.now().isoformat())
 
 # =============================================================================
 # Viewer local server
@@ -317,11 +327,18 @@ def refresh_project_context(project_id, style_id=None):
 # Project / Style actions
 # =============================================================================
 
+def _ui_error(action,exc):
+    """Log the full traceback, then return the short message shown in the UI."""
+    import logging
+    logging.getLogger("majd.ui").error("%s failed",action,exc_info=exc)
+    return gr.Error(str(exc))
+
+
 def create_project_action(name,description):
     try:
         pid=STORE.create_project(name,description,create_default_style=True)
     except Exception as exc:
-        raise gr.Error(str(exc))
+        raise _ui_error("create_project_action",exc) from exc
     sid=default_style_for(pid)
     return (
         f"تم إنشاء المشروع **{name}**.",
@@ -359,7 +376,7 @@ def create_style_action(
             min_style_geometry_score=float(min_style_geometry_score)/100.0,
         )
     except Exception as exc:
-        raise gr.Error(str(exc))
+        raise _ui_error("create_style_action",exc) from exc
     return (
         f"تم إنشاء النمط الفني **{name}**.",style_selector_update(current_project,sid),
         style_table_data(current_project)
@@ -433,7 +450,7 @@ def add_style_reference_action(current_project,style_id,image_path,category,view
     try:
         STORE.add_style_reference(style_id,image_path,category,view_name,label,float(weight))
     except Exception as exc:
-        raise gr.Error(str(exc))
+        raise _ui_error("add_style_reference_action",exc) from exc
     return (
         "تمت إضافة المرجع.",
         style_reference_table_data(style_id),style_reference_selector_update(style_id),
@@ -484,8 +501,10 @@ def create_asset_action(
             project_id,style_id,name,asset_type,library_category,target_size,unit,style_lock,
             engine_hint,views,candidates,steps,guidance,resolution,base_seed,seed_strategy,
             remove_bg,preserve_mesh,auto_blender,retry_count)
-    except (ValueError,OSError,sqlite3.Error) as exc:
+    except ValueError as exc:
         raise gr.Error(str(exc)) from exc
+    except (OSError,sqlite3.Error) as exc:
+        raise _ui_error("create_asset_action",exc) from exc
     return (
         f"تمت إضافة **{name}** إلى **{STORE.get_project(project_id)['name']}**.",
         summary_html(project_id),queue_data(project_id),review_selector_update(project_id)
@@ -500,8 +519,10 @@ def import_folder_action(
         added,skipped=INTAKE.import_folder(
             project_id,style_id,folder,asset_type,engine_hint,candidates,steps,guidance,resolution,
             remove_bg,preserve_mesh,auto_blender,retry_count,skip_existing,style_lock)
-    except (ValueError,OSError,sqlite3.Error) as exc:
+    except ValueError as exc:
         raise gr.Error(str(exc)) from exc
+    except (OSError,sqlite3.Error) as exc:
+        raise _ui_error("import_folder_action",exc) from exc
     msg=f"تمت إضافة {added} أصل إلى المشروع."
     if skipped: msg+="\nتم تجاهل: "+", ".join(skipped[:12])
     return msg,summary_html(project_id),queue_data(project_id),review_selector_update(project_id)
@@ -596,8 +617,10 @@ def approve_candidate_action(project_id,asset_id,index,override_style_lock):
     if not row or not items: raise gr.Error("لا يوجد Candidate للاعتماد.")
     try:
         review=REVIEW_UI.service.approve(asset_id,override_style_lock=override_style_lock)
-    except (ValueError,OSError) as exc:
+    except ValueError as exc:
         raise gr.Error(str(exc)) from exc
+    except OSError as exc:
+        raise _ui_error("approve_candidate_action",exc) from exc
     version=STORE.latest_version(asset_id)
     ver=version["version_number"]; glb_path=review["approved_artifact_path"]; blend_path=version["blend_path"]
     candidate=next(c for c in STORE.list_review_candidates(asset_id) if c["candidate_id"]==review["approved_candidate_id"])
@@ -614,7 +637,10 @@ def approve_candidate_action(project_id,asset_id,index,override_style_lock):
 def requeue_action(project_id,asset_id):
     if not asset_id: raise gr.Error("اختر أصلًا.")
     if PROCESSING_UI.is_active(asset_id): raise gr.Error("أوقف معالجة الأصل قبل إعادة التوليد.")
-    STORE.update_asset(asset_id,status="pending",progress=0,candidates_json=None,best_glb=None,best_score=None,message="أعيد للتوليد؛ النسخ المعتمدة السابقة محفوظة")
+    try:
+        STORE.requeue_asset_generation(asset_id,"أعيد للتوليد؛ النسخ المعتمدة السابقة محفوظة")
+    except ValueError as exc:
+        raise gr.Error(str(exc)) from exc
     publish_viewer(None)
     return "تمت إعادته للدفعة مع الاحتفاظ بالإصدارات السابقة.",summary_html(project_id),queue_data(project_id),review_selector_update(project_id)
 
@@ -671,7 +697,7 @@ def variant_target_project_changed(project_id):
 def create_variant_action(current_project,source_asset_id,target_project_id,target_style_id,new_name):
     if not source_asset_id or not target_project_id or not target_style_id: raise gr.Error("حدد الأصل والمشروع والـStyle المستهدف.")
     try: aid=STORE.create_variant(source_asset_id,target_project_id,target_style_id,new_name)
-    except Exception as exc: raise gr.Error(str(exc))
+    except Exception as exc: raise _ui_error("create_variant_action",exc) from exc
     return (
         f"تم إنشاء نسخة كأصل مستقل: `{aid}`.",
         library_selector_update(current_project),library_data(current_project),
@@ -723,7 +749,7 @@ def download_model_action(key,progress=gr.Progress()):
     except DownloadCancelled as exc:
         return str(exc),model_table_data()
     except Exception as exc:
-        raise gr.Error(str(exc))
+        raise _ui_error("download_model_action",exc) from exc
 
 
 def cancel_download_action():
@@ -770,7 +796,7 @@ def prepare_parts_action(reconstruct,progress=gr.Progress()):
             PARTS_SERVICE.prepare(lambda fraction,text: report_ui_progress(progress,fraction,text),DOWNLOAD_CANCEL,bool(reconstruct))
         return "أدوات الأجزاء والأوزان جاهزة للتشغيل."
     except Exception as exc:
-        raise gr.Error(str(exc))
+        raise _ui_error("prepare_parts_action",exc) from exc
 
 
 def run_parts_action(project_id,source_mode,asset_id,uploaded,reconstruct,postprocess,threshold,seed,resolution,steps,progress=gr.Progress()):
@@ -798,7 +824,7 @@ def run_parts_action(project_id,source_mode,asset_id,uploaded,reconstruct,postpr
         STORE.save_part_run(project_id,parent["id"] if parent else None,result)
         return (*parts_result_view(result),parts_history_update(project_id,result["job_id"]))
     except Exception as exc:
-        raise gr.Error(str(exc))
+        raise _ui_error("run_parts_action",exc) from exc
 
 
 def load_parts_result(project_id,run_id):
@@ -822,7 +848,7 @@ def approve_part_action(project_id,style_id,run_id,part_id,name):
         aid=STORE.approve_part(run_id,int(part_id),name,project_id,style_id)
         return (f"تم اعتماد الجزء كأصل مستقل: {aid}.",library_selector_update(project_id),library_data(project_id),summary_html(project_id),queue_data(project_id))
     except Exception as exc:
-        raise gr.Error(str(exc))
+        raise _ui_error("approve_part_action",exc) from exc
 
 # =============================================================================
 # UI

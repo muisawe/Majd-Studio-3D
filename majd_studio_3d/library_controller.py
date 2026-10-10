@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import threading
 from datetime import date
 from pathlib import Path
 
@@ -14,6 +16,23 @@ class LibraryController:
     def __init__(self, store):
         self.store = store
         self.service = LibraryService(store)
+        self.integrity_issues = None  # None until the background scan finishes.
+
+    def start_integrity_scan(self):
+        """Hash every library artifact off the startup path and keep the findings; nothing is repaired."""
+        def scan():
+            log = logging.getLogger("majd.library")
+            try:
+                issues = self.store.library_integrity_issues()
+            except Exception:  # noqa: BLE001 -- a failed scan must not affect the studio
+                log.exception("Library integrity scan failed")
+                return
+            self.integrity_issues = issues
+            for issue in issues:
+                log.warning("Library integrity issue: %s", issue)
+        thread = threading.Thread(target=scan, name="library-integrity", daemon=True)
+        thread.start()
+        return thread
 
     @staticmethod
     def _decode_asset(row):
@@ -73,7 +92,10 @@ class LibraryController:
                 for row in self.list(filters)]
 
     def counters(self):
-        return self.store.library_counters()
+        counts = dict(self.store.library_counters())
+        if self.integrity_issues:
+            counts["integrity_issues"] = len(self.integrity_issues)
+        return counts
 
     def unassigned(self):
         results = self.store.list_unassigned_approved_results()

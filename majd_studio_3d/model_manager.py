@@ -16,6 +16,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
+from .atomic_io import atomic_write_json
 from .verified_model_metadata import MODEL_MANIFESTS
 
 PARTS_REVISION = "27cacbd069110b5fdeb85e928e6f9433d5487c37"
@@ -67,10 +68,7 @@ def safe_relative(value: str) -> str:
 
 
 def write_json(path: Path, data: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(path.name + ".new")
-    temporary.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    os.replace(temporary, path)
+    atomic_write_json(path, data, ensure_ascii=True)
 
 
 def file_matches(path: Path, entry: dict) -> bool:

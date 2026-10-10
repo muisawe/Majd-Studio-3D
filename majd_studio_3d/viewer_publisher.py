@@ -9,6 +9,7 @@ import uuid
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from .atomic_io import atomic_write_json
 from .constants import STATUS_AR, VIEW_KEYS
 
 
@@ -39,7 +40,7 @@ class ViewerPublisher:
 
     def ensure_state(self):
         if not self.state.exists():
-            self.state.write_text(json.dumps(self._empty_payload(), ensure_ascii=False, indent=2), encoding="utf-8")
+            atomic_write_json(self.state, self._empty_payload())
 
     def start_server(self):
         self.ensure_state()
@@ -57,9 +58,10 @@ class ViewerPublisher:
         self.server = server
         return server
 
-    def clear(self):
+    def clear(self, keep=()):
+        """Delete viewer files other than state.json and the names in `keep`."""
         for path in self.data.iterdir():
-            if path.name == "state.json":
+            if path.name == "state.json" or path.name in keep:
                 continue
             try:
                 if path.is_file():
@@ -80,11 +82,13 @@ class ViewerPublisher:
         return [item for item in items if isinstance(item, dict)] if isinstance(items, list) else []
 
     def publish(self, row, selected_index=0, preview=None):
+        # New files are copied first and old ones removed only after state.json
+        # points at them, so a polling viewer never sees a missing model.
         with self.lock:
-            self.clear()
             version = uuid.uuid4().hex[:10]
             if not row:
-                self.state.write_text(json.dumps(self._empty_payload(version), ensure_ascii=False, indent=2), encoding="utf-8")
+                atomic_write_json(self.state, self._empty_payload(version))
+                self.clear()
                 return
             items = self.candidate_list(row)
             if not items and row["best_glb"] and Path(row["best_glb"]).exists():
@@ -127,4 +131,5 @@ class ViewerPublisher:
                                 "assetType": row["asset_type"], "engine": row["engine"],
                                 "views": sum(bool(row[f"{k}_path"]) for k in VIEW_KEYS),
                                 "status": STATUS_AR.get(row["status"], row["status"]), "version": int(row["current_version"])}}
-            self.state.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            atomic_write_json(self.state, payload)
+            self.clear(keep={Path(model["url"]).name for model in models} | ({Path(reference).name} if reference else set()))

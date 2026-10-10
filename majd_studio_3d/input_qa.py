@@ -12,13 +12,14 @@ landmarks require a dedicated model and are a later Phase 2 increment.
 from __future__ import annotations
 
 import hashlib
-import json
 import math
 from pathlib import Path
 from typing import Iterable, Optional
 
 import numpy as np
 from PIL import Image
+
+from .atomic_io import atomic_write_json
 
 VIEW_KEYS = ("front", "back", "left", "right", "threeq", "detail")
 CARDINAL_KEYS = ("front", "back", "left", "right")
@@ -274,7 +275,7 @@ def run_preflight(
                     p, str(out/f"{key}.png"),
                     canvas=int(calibration_canvas), target_occupancy=float(target_occupancy)
                 )
-        (out/"calibration.json").write_text(json.dumps(calibrated,ensure_ascii=False,indent=2),encoding="utf-8")
+        atomic_write_json(out/"calibration.json",calibrated)
 
     result={
         **report,
